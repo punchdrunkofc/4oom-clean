@@ -8,7 +8,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const currentSection = urlParams.get('section');
 
 let dbSections = [];
-let cropper = null; // Переменная для Cropper.js
+let cropper = null; 
 
 function getRoleBadge(role) {
   if (!role || role === 'user') return '';
@@ -61,7 +61,6 @@ if (document.getElementById('userName')) {
           const banner = document.getElementById('userBanner');
           banner.src = user.banner_url;
           banner.style.display = 'block';
-          // Если это не Base64 (старый формат), применяем позицию
           if (!user.banner_url.startsWith('data:image')) {
             banner.style.objectPosition = user.banner_position || 'center';
           }
@@ -230,7 +229,6 @@ if (document.getElementById('setNick')) {
     const previewAvatar = document.getElementById('previewAvatar');
     if (previewAvatar) previewAvatar.src = avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2230%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
 
-    // Баннер берем из скрытого инпута (Base64)
     const banner = document.getElementById('setBanner').value;
     const previewBanner = document.getElementById('previewBanner');
     if (previewBanner) {
@@ -274,9 +272,8 @@ if (document.getElementById('setNick')) {
         saveCropBtn.style.display = 'inline-block';
 
         if (cropper) cropper.destroy();
-        // Настраиваем пропорции баннера (например, 3:1)
         cropper = new Cropper(cropperImage, {
-          aspectRatio: 3,
+          aspectRatio: 3, // Пропорции 3:1
           viewMode: 1,
           autoCropArea: 1,
         });
@@ -288,21 +285,22 @@ if (document.getElementById('setNick')) {
   window.applyCrop = function() {
     if (!cropper) return;
     
-    // Получаем обрезанное изображение в формате Base64
-    // Указываем ширину 600px для оптимизации веса
+    // Сохраняем в высоком разрешении 1200x400 и в PNG (без потери качества)
     const canvas = cropper.getCroppedCanvas({
-      width: 600,
-      height: 200
+      width: 1200,
+      height: 400,
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high'
     });
     
-    const base64Image = canvas.toDataURL('image/jpeg', 0.8); // Сжимаем в JPEG
+    const base64Image = canvas.toDataURL('image/png');
     
     document.getElementById('setBanner').value = base64Image;
     cropperContainer.style.display = 'none';
     saveCropBtn.style.display = 'none';
     if (cropper) { cropper.destroy(); cropper = null; }
     
-    updateLivePreview(); // Обновляем предпросмотр
+    updateLivePreview();
   };
 
   if (currentUser) {
@@ -310,7 +308,6 @@ if (document.getElementById('setNick')) {
     document.getElementById('setAvatar').value = currentUser.avatar || '';
     
     fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(data => {
-      // Если баннер уже есть (Base64), ставим его в скрытый инпут
       if (data.user.banner_url && data.user.banner_url.startsWith('data:image')) {
         document.getElementById('setBanner').value = data.user.banner_url;
       }
@@ -324,7 +321,7 @@ if (document.getElementById('setNick')) {
     if (!currentUser) return alert('Please login with GitHub first!');
     const nick = document.getElementById('setNick').value.trim();
     const avatar = document.getElementById('setAvatar').value.trim();
-    const banner = document.getElementById('setBanner').value; // Тут уже Base64
+    const banner = document.getElementById('setBanner').value; 
     const bio = document.getElementById('setBio').value.trim();
     const font = document.getElementById('setFont') ? document.getElementById('setFont').value : '';
     
