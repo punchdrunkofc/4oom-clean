@@ -1,10 +1,5 @@
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-// ПРИМЕНЯЕМ ТЕМУ И ФОН ПРИ ЗАГРУЗКЕ
-const savedTheme = localStorage.getItem('4oom_theme') || 'dark';
-const savedBg = localStorage.getItem('4oom_bg') || 'stars';
-document.body.className = 'theme-' + savedTheme + ' bg-' + savedBg;
-
 function compressImage(file, maxWidth = 800) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -69,6 +64,14 @@ if (document.getElementById('userName')) {
         document.getElementById('userName').innerHTML = formatName(user.display_name, user.role, user.font_family);
         document.getElementById('userRole').innerHTML = getRoleBadge(user.role);
         
+        // ПРИМЕНЯЕМ ФОН ПРОФИЛЯ
+        if (user.background_url) {
+          document.body.style.backgroundImage = `url('${user.background_url}')`;
+          document.body.style.backgroundSize = 'cover';
+          document.body.style.backgroundPosition = 'center';
+          document.body.style.backgroundAttachment = 'fixed';
+        }
+
         if (currentUser && currentUser.login === user.display_name) {
           const editBtn = document.getElementById('editProfileBtn');
           if (editBtn) { editBtn.style.display = 'inline-block'; editBtn.href = '/settings.html'; }
@@ -102,6 +105,18 @@ if (document.getElementById('userName')) {
 
 // --- ГЛАВНАЯ СТРАНИЦА ---
 if (document.getElementById('threadList')) {
+  // Применяем сохраненный фон пользователя (для главной страницы)
+  if (currentUser) {
+    fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(data => {
+       if(data.user.background_url) {
+          document.body.style.backgroundImage = `url('${data.user.background_url}')`;
+          document.body.style.backgroundSize = 'cover';
+          document.body.style.backgroundPosition = 'center';
+          document.body.style.backgroundAttachment = 'fixed';
+       }
+    });
+  }
+
   fetch('/api/sections').then(r => r.json()).then(sections => {
     dbSections = sections.map(s => s.section_slug);
     const select = document.getElementById('sectionSelect');
@@ -232,7 +247,7 @@ if (document.getElementById('setNick')) {
   document.getElementById('setBio').addEventListener('input', updateLivePreview);
   document.getElementById('setFont').addEventListener('change', updateLivePreview);
 
-  // Аватарка (Кроп)
+  // Аватарка
   let avatarCropper = null;
   const avatarFileInput = document.getElementById('avatarFile');
   const avatarCropperContainer = document.getElementById('avatarCropperContainer');
@@ -265,7 +280,7 @@ if (document.getElementById('setNick')) {
     updateLivePreview();
   };
 
-  // Баннер (Кроп)
+  // Баннер
   let bannerCropper = null;
   const bannerFileInput = document.getElementById('bannerFile');
   const bannerCropperContainer = document.getElementById('bannerCropperContainer');
@@ -298,18 +313,53 @@ if (document.getElementById('setNick')) {
     updateLivePreview();
   };
 
-  // Загрузка данных
+  // ФОН
+  let bgCropper = null;
+  const bgFileInput = document.getElementById('bgFile');
+  const bgCropperContainer = document.getElementById('bgCropperContainer');
+  const bgCropperImage = document.getElementById('bgCropperImage');
+  const saveBgBtn = document.getElementById('saveBgBtn');
+
+  if (bgFileInput && typeof Cropper !== 'undefined') {
+    bgFileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        bgCropperImage.src = event.target.result; 
+        bgCropperContainer.style.display = 'block'; 
+        saveBgBtn.style.display = 'inline-block';
+        if (bgCropper) bgCropper.destroy();
+        bgCropper = new Cropper(bgCropperImage, { aspectRatio: 16/9, viewMode: 1, autoCropArea: 1 });
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  window.applyBgCrop = function() {
+    if (!bgCropper) return;
+    const canvas = bgCropper.getCroppedCanvas({ width: 1920, height: 1080, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+    const base64Image = canvas.toDataURL('image/jpeg', 0.8); // Фон тяжелый, сжимаем сильнее
+    document.getElementById('setBg').value = base64Image;
+    bgCropperContainer.style.display = 'none'; 
+    saveBgBtn.style.display = 'none';
+    if (bgCropper) { bgCropper.destroy(); bgCropper = null; }
+    document.body.style.backgroundImage = `url('${base64Image}')`;
+    document.body.style.backgroundSize = 'cover';
+    document.body.style.backgroundPosition = 'center';
+  };
+
   if (currentUser) {
     document.getElementById('setNick').value = currentUser.login;
     fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(data => {
       if (data.user.banner_url) document.getElementById('setBanner').value = data.user.banner_url;
       if (data.user.avatar_url) document.getElementById('setAvatar').value = data.user.avatar_url;
+      if (data.user.background_url) {
+        document.getElementById('setBg').value = data.user.background_url;
+        document.body.style.backgroundImage = `url('${data.user.background_url}')`;
+        document.body.style.backgroundSize = 'cover';
+      }
       document.getElementById('setBio').value = data.user.bio || '';
       if(document.getElementById('setFont')) document.getElementById('setFont').value = data.user.font_family || '';
-      
-      if(document.getElementById('setTheme')) document.getElementById('setTheme').value = data.user.theme || 'dark';
-      if(document.getElementById('setBg')) document.getElementById('setBg').value = data.user.background || 'stars';
-      
       updateLivePreview(); 
     });
   }
@@ -319,20 +369,15 @@ if (document.getElementById('setNick')) {
     const nick = document.getElementById('setNick').value.trim();
     const avatar = document.getElementById('setAvatar').value; 
     const banner = document.getElementById('setBanner').value; 
+    const bg = document.getElementById('setBg').value; 
     const bio = document.getElementById('setBio').value.trim();
     const font = document.getElementById('setFont') ? document.getElementById('setFont').value : '';
-    
-    const theme = document.getElementById('setTheme').value;
-    const bg = document.getElementById('setBg').value;
-    localStorage.setItem('4oom_theme', theme);
-    localStorage.setItem('4oom_bg', bg);
-    document.body.className = 'theme-' + theme + ' bg-' + bg;
 
     if (!nick) return alert('Nickname cannot be empty');
     try {
       const res = await fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ 
           user_id: currentUser.id, display_name: nick, avatar_url: avatar, banner_url: banner, 
-          bio: bio, font_family: font, theme: theme, background: bg 
+          bio: bio, font_family: font, background_url: bg 
       }) });
       if (!res.ok) throw new Error('Save error');
       
