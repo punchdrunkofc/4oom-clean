@@ -146,9 +146,14 @@ export default {
       if (url.pathname === '/api/profile' && request.method === 'POST') {
         const b = await request.json();
         if (!b.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
-        await env.DB.prepare(`UPDATE users SET display_name = ?, bio = ?, font_family = ?, avatar_url = ?, banner_url = ?, background_url = ? WHERE id = ?`)
-          .bind(b.display_name, b.bio || null, b.font_family || null, b.avatar_url || null, b.banner_url || null, b.background_url || null, b.user_id).run();
-        return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        
+        try {
+          await env.DB.prepare(`UPDATE users SET display_name = ?, bio = ?, font_family = ?, avatar_url = ?, banner_url = ?, background_url = ? WHERE id = ?`)
+            .bind(b.display_name, b.bio || null, b.font_family || null, b.avatar_url || null, b.banner_url || null, b.background_url || null, b.user_id).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        } catch (err) {
+          return new Response(JSON.stringify({ error: 'DB Error: ' + err.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+        }
       }
 
       // --- ДРУЗЬЯ ---
@@ -156,9 +161,7 @@ export default {
         const userId = url.searchParams.get('user_id');
         if (!userId) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
         const { results } = await env.DB.prepare(`SELECT friend_id FROM friends WHERE user_id = ? UNION SELECT user_id FROM friends WHERE friend_id = ?`).bind(userId, userId).all();
-        // Приводим к единому массиву ID
-        const ids = results.map(r => r.friend_id || r.user_id);
-        return new Response(JSON.stringify(ids), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify(results.map(r => r.friend_id || r.user_id)), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
       if (url.pathname === '/api/friends/request' && request.method === 'POST') {
         const body = await request.json();
@@ -183,7 +186,6 @@ export default {
       if (url.pathname === '/api/friends/list' && request.method === 'GET') {
         const userId = url.searchParams.get('user_id');
         if (!userId) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
-        // Получаем друзей, где связь подтверждена (в любом направлении, но у нас направленная модель)
         const { results } = await env.DB.prepare(`SELECT u.id, u.display_name, u.avatar_url, u.role FROM friends f JOIN users u ON f.friend_id = u.id WHERE f.user_id = ? AND f.status = 'accepted'`).bind(userId).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
@@ -232,7 +234,6 @@ export default {
         const section = url.searchParams.get('section');
         const my = url.searchParams.get('my');
         let q = `SELECT t.*, u.role AS author_role, u.font_family AS author_font, (SELECT id FROM posts p WHERE p.thread_id = t.id ORDER BY p.created_at ASC LIMIT 1) AS first_post_id, (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count FROM threads t LEFT JOIN users u ON t.author_name = u.display_name`;
-        // Убрали GROUP BY HAVING reply_count > 0, чтобы показывать новые треды без ответов
         if (section) { q += ` WHERE t.section_slug = ? ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).bind(section).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
         else if (my) { q += ` WHERE t.author_name = ? ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).bind(my).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
         else { q += ` ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
