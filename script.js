@@ -1,3 +1,4 @@
+
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 function compressImage(file, maxWidth = 800) {
