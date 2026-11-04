@@ -68,6 +68,66 @@ export class ChatRoom extends DurableObject {
   }
 }
 
+// ================= DURABLE OBJECT (БАГ-РЕПОРТЫ) =================
+export class BugRoom extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.sessions = new Map();
+    this.messages = []; 
+    this.ctx.blockConcurrencyWhile(async () => {
+      this.messages = (await this.ctx.storage.get('bug_reports')) || [];
+    });
+    this.ctx.getWebSockets().forEach((ws) => {
+      let attachment = ws.deserializeAttachment();
+      if (attachment) this.sessions.set(ws, attachment);
+    });
+  }
+
+  async fetch(request) {
+    const upgradeHeader = request.headers.get('Upgrade');
+    if (!upgradeHeader || upgradeHeader !== 'websocket') return new Response('Expected WebSocket', { status: 426 });
+    
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    this.ctx.acceptWebSocket(server);
+    
+    const url = new URL(request.url);
+    const nick = url.searchParams.get('nick') || 'guest';
+    const role = url.searchParams.get('role') || 'user';
+
+    for (let [ws, session] of this.sessions.entries()) {
+      if (session.nick === nick) {
+        try { ws.close(1000, 'New session opened'); } catch (e) {}
+        this.sessions.delete(ws);
+      }
+    }
+
+    server.serializeAttachment({ nick, role });
+    this.sessions.set(server, { nick, role });
+    server.send(JSON.stringify({ type: 'history', messages: this.messages }));
+    
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async webSocketMessage(ws, message) {
+    const session = this.sessions.get(ws);
+    if (!session) return;
+    const data = JSON.parse(message);
+    const msgObj = { type: 'chat', user: session.nick, role: session.role, text: data.text, time: Date.now() };
+    
+    this.messages.push(msgObj);
+    if (this.messages.length > 100) this.messages = this.messages.slice(-100); 
+    await this.ctx.storage.put('bug_reports', this.messages); 
+
+    const msgToSend = JSON.stringify(msgObj);
+    this.ctx.getWebSockets().forEach((client) => { try { client.send(msgToSend); } catch (e) {} });
+  }
+
+  async webSocketClose(ws) {
+    this.sessions.delete(ws);
+  }
+}
+
 // ================= MAIN WORKER =================
 export default {
   async fetch(request, env) {
@@ -82,6 +142,14 @@ export default {
       const role = url.searchParams.get('role') || 'user';
       const id = env.CHAT_ROOM.idFromName('global');
       const stub = env.CHAT_ROOM.get(id);
+      return stub.fetch(new Request(url.origin + `/ws?nick=${encodeURIComponent(nick)}&role=${encodeURIComponent(role)}`, request));
+    }
+    
+    if (url.pathname === '/api/bugs/ws') {
+      const nick = url.searchParams.get('nick') || 'guest';
+      const role = url.searchParams.get('role') || 'user';
+      const id = env.BUG_ROOM.idFromName('global_bugs');
+      const stub = env.BUG_ROOM.get(id);
       return stub.fetch(new Request(url.origin + `/ws?nick=${encodeURIComponent(nick)}&role=${encodeURIComponent(role)}`, request));
     }
 
@@ -138,7 +206,6 @@ export default {
         let user = await env.DB.prepare(`SELECT * FROM users WHERE display_name = ?`).bind(login).first();
         if (!user) user = await env.DB.prepare(`SELECT * FROM users WHERE github_login = ?`).bind(login).first();
         if (!user) return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: cors });
-        // Ищем треды по ID, а не по нику
         const { results: threads } = await env.DB.prepare(`SELECT t.*, (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count FROM threads t WHERE t.author_id = ? ORDER BY t.updated_at DESC`).bind(user.id).all();
         return new Response(JSON.stringify({ user, threads }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
@@ -223,12 +290,10 @@ export default {
         const b = await request.json();
         const post = await env.DB.prepare(`SELECT * FROM posts WHERE id = ?`).bind(b.post_id).first();
         if (!post) return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: cors });
-        // Проверка прав по роли или по автору (сравниваем логины)
         const authorCheck = await env.DB.prepare(`SELECT display_name FROM users WHERE id = ?`).bind(post.author_id).first();
         if (!['creator', 'moderator', 'editor'].includes(b.user_role) && (!authorCheck || authorCheck.display_name !== b.user_login)) {
           return new Response(JSON.stringify({ error: 'No permission' }), { status: 403, headers: cors });
         }
-        
         const first = await env.DB.prepare(`SELECT id FROM posts WHERE thread_id = ? ORDER BY created_at ASC LIMIT 1`).bind(post.thread_id).first();
         if (first && first.id === post.id) await env.DB.prepare(`DELETE FROM threads WHERE id = ?`).bind(post.thread_id).run();
         else await env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(b.post_id).run();
@@ -240,7 +305,6 @@ export default {
         const section = url.searchParams.get('section');
         const my = url.searchParams.get('my');
         
-        // Ищем треды JOIN'ом по users, чтобы всегда отдавать актуальный ник, роль и шрифт
         let q = `SELECT t.id, t.section_slug, t.title, t.created_at, t.updated_at, 
                  u.display_name AS author_name, u.role AS author_role, u.font_family AS author_font,
                  (SELECT id FROM posts p WHERE p.thread_id = t.id ORDER BY p.created_at ASC LIMIT 1) AS first_post_id, 
@@ -252,7 +316,6 @@ export default {
           const { results } = await env.DB.prepare(q).bind(section).all(); 
           return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); 
         } else if (my) { 
-          // Для поиска "моих" тредов находим ID пользователя по нику
           const user = await env.DB.prepare(`SELECT id FROM users WHERE display_name = ?`).bind(my).first();
           if (!user) return new Response(JSON.stringify([]), { headers: { ...cors, 'Content-Type': 'application/json' } });
           
@@ -269,9 +332,8 @@ export default {
         const b = await request.json();
         const slug = (b.section_slug || 'general').toLowerCase().replace(/\s+/g, '-');
         
-        // Находим ID автора
         let author = await env.DB.prepare(`SELECT id FROM users WHERE display_name = ?`).bind(b.author_name).first();
-        const authorId = author ? author.id : null; // null для гостей
+        const authorId = author ? author.id : null; 
 
         const t = await env.DB.prepare(`INSERT INTO threads (section_slug, title, author_id) VALUES (?, ?, ?) RETURNING id`).bind(slug, b.title, authorId).first();
         await env.DB.prepare(`INSERT INTO posts (thread_id, author_id, body, image_url, music_url) VALUES (?, ?, ?, ?, ?)`).bind(t.id, authorId, b.body, b.image_url || null, b.music_url || null).run();
@@ -284,7 +346,6 @@ export default {
         const thread = await env.DB.prepare(`SELECT * FROM threads WHERE id = ?`).bind(threadId).first();
         if (!thread) return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: cors });
         
-        // Подтягиваем актуальные данные авторов
         const { results } = await env.DB.prepare(`SELECT p.id, p.body, p.image_url, p.music_url, p.created_at, 
           COALESCE(u.display_name, 'guest') AS author_name, 
           COALESCE(u.avatar_url, '') AS author_avatar, 
