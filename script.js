@@ -16,9 +16,14 @@ function getRoleBadge(role) {
   return `<span class="role-badge role-${role}">${labels[role]}</span>`;
 }
 
+// Безопасное применение шрифта
 function formatName(name, role, font) {
-  let style = font ? `font-family: ${font};` : "";
-  if (role === 'creator') return `<span class="creator-name" style="${style}">${escapeHtml(name)}</span>`;
+  const safeFont = font && font.trim() !== '' ? font : 'var(--font-pixel)';
+  const style = `font-family: ${safeFont};`;
+  
+  if (role === 'creator') {
+    return `<span class="creator-name" style="${style}">${escapeHtml(name)}</span>`;
+  }
   return `<span style="${style}">${escapeHtml(name)}</span>`;
 }
 
@@ -63,10 +68,10 @@ if (document.getElementById('userName')) {
 
         const list = document.getElementById('userThreads');
         if (!threads || threads.length === 0) {
-          list.innerHTML = '<li class="thread"><a href="#"><span class="thread__title">No threads yet.</span></a></li>';
+          list.innerHTML = '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">No threads yet.</span></a></li>';
         } else {
           list.innerHTML = threads.map(t => {
-            return `<li class="thread">
+            return `<li class="thread" style="text-align: left;">
               <a href="/thread.html?id=${t.id}">
                 <span class="thread__title">[${t.section_slug}] ${escapeHtml(t.title)}</span>
                 <span class="thread__meta">${t.reply_count} replies</span>
@@ -167,14 +172,15 @@ if (document.getElementById('threadList')) {
       }
       const r = await fetch(endpoint);
       let threads = await r.json();
-      if (!threads || threads.length === 0) { list.innerHTML = '<li class="thread"><a href="#"><span class="thread__title">Nothing here yet...</span></a></li>'; return; }
+      if (!threads || threads.length === 0) { list.innerHTML = '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">Nothing here yet...</span></a></li>'; return; }
       if (!currentSection) threads = threads.sort((a, b) => b.reply_count - a.reply_count).slice(0, 5);
       
       list.innerHTML = threads.map(function(t) {
         const canDelete = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || t.author_name === currentUser.login);
         const deleteBtn = canDelete ? `<button class="delete-btn" onclick="event.preventDefault(); deleteThread(${t.first_post_id})">delete</button>` : '';
         const sectionBadge = (!currentSection || currentSection === 'my') ? `<span style="font-size:10px; color:#000080; margin-right:4px;">[${t.section_slug}]</span>` : '';
-        return `<li class="thread">
+        
+        return `<li class="thread" style="text-align: left;">
           <a href="/thread.html?id=${t.id}">
             <span class="thread__title">${sectionBadge}${escapeHtml(t.title)}</span>
             <span class="thread__meta">by <a href="/profile.html?user=${encodeURIComponent(t.author_name)}" style="text-decoration:none; color:inherit;">${formatName(t.author_name, t.author_role, t.author_font)}</a> · ${t.reply_count} replies</span>
