@@ -49,9 +49,10 @@ function formatName(name, role, font) {
 function applyCustomBg(url) {
   const video = document.getElementById('bgVideo');
   if (!url) {
+    // Если фона нет, просто скрываем видео и убираем inline-стили, чтобы вернуть звездный фон из CSS
     if (video) { video.pause(); video.style.display = 'none'; video.src = ''; }
-    document.body.style.backgroundImage = 'none';
-    document.body.style.backgroundColor = '#000';
+    document.body.style.backgroundImage = '';
+    document.body.style.backgroundColor = '';
     return;
   }
   if (url.endsWith('.mp4')) {
@@ -68,7 +69,9 @@ function applyCustomBg(url) {
   }
 }
 
-function resetVideoBg() { applyCustomBg(null); }
+function resetVideoBg() { 
+  applyCustomBg(null); 
+}
 
 // ================= 1. ПРОФИЛЬ =================
 if (document.getElementById('userName')) {
