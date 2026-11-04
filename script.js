@@ -7,7 +7,7 @@ if (userJson) { try { currentUser = JSON.parse(userJson); } catch(e) { localStor
 const urlParams = new URLSearchParams(window.location.search);
 const currentSection = urlParams.get('section');
 
-let dbSections = []; // Разделы из базы данных
+let dbSections = [];
 
 function getRoleBadge(role) {
   if (!role || role === 'user') return '';
@@ -24,13 +24,11 @@ function formatName(name, role) {
 // --- ГЛАВНАЯ СТРАНИЦА ---
 if (document.getElementById('threadList')) {
   
-  // Загружаем разделы из базы
+  // Загрузка разделов
   fetch('/api/sections').then(r => r.json()).then(sections => {
     dbSections = sections.map(s => s.section_slug);
     
-    // Заполняем верхнее меню
     const select = document.getElementById('sectionSelect');
-    // Объединяем твой список из файла и список из базы (чтобы избежать дублей)
     const allMenuSections = [...new Set([...customSuggestions, ...dbSections])].sort();
     
     allMenuSections.forEach(sec => {
@@ -42,9 +40,9 @@ if (document.getElementById('threadList')) {
     if (currentSection && currentSection !== 'my') {
       select.value = currentSection;
     }
-  });
+  }).catch(e => console.error('Sections load error', e));
 
-  // Логика автодополнения
+  // Подсказки
   const sectionInput = document.getElementById('newSection');
   const suggestionsBox = document.getElementById('sectionSuggestions');
 
@@ -53,12 +51,8 @@ if (document.getElementById('threadList')) {
       const val = this.value.toLowerCase().trim();
       suggestionsBox.innerHTML = '';
       
-      if (!val) {
-        suggestionsBox.style.display = 'none';
-        return;
-      }
+      if (!val) { suggestionsBox.style.display = 'none'; return; }
 
-      // Объединяем списки для поиска
       const allSuggestions = [...new Set([...customSuggestions, ...dbSections])].sort();
       const matches = allSuggestions.filter(s => s.includes(val));
       
@@ -85,13 +79,11 @@ if (document.getElementById('threadList')) {
     });
   }
 
-  // Подсветка активной вкладки
-  if (!currentSection) {
-    document.getElementById('nav-home').style.fontWeight = 'bold';
-  } else if (currentSection === 'my') {
-    document.getElementById('nav-my').style.fontWeight = 'bold';
-  }
+  // Подсветка вкладок
+  if (!currentSection) document.getElementById('nav-home').style.fontWeight = 'bold';
+  if (currentSection === 'my') document.getElementById('nav-my').style.fontWeight = 'bold';
 
+  // Профиль
   if (currentUser) {
     document.getElementById('profileName').textContent = currentUser.login;
     document.getElementById('profileBox').innerHTML = `
@@ -109,11 +101,7 @@ if (document.getElementById('threadList')) {
       const res = await fetch('/api/posts/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          post_id: firstPostId, 
-          user_role: currentUser ? currentUser.role : 'guest', 
-          user_login: currentUser ? currentUser.login : 'guest' 
-        })
+        body: JSON.stringify({ post_id: firstPostId, user_role: currentUser ? currentUser.role : 'guest', user_login: currentUser ? currentUser.login : 'guest' })
       });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
       loadThreads();
@@ -138,9 +126,7 @@ if (document.getElementById('threadList')) {
         return; 
       }
 
-      if (!currentSection) {
-        threads = threads.sort((a, b) => b.reply_count - a.reply_count).slice(0, 5);
-      }
+      if (!currentSection) threads = threads.sort((a, b) => b.reply_count - a.reply_count).slice(0, 5);
       
       list.innerHTML = threads.map(function(t) {
         const canDelete = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || t.author_name === currentUser.login);
@@ -172,11 +158,87 @@ if (document.getElementById('threadList')) {
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Server error'); }
       document.getElementById('createForm').style.display = 'none';
       document.getElementById('newTitle').value = ''; document.getElementById('newBody').value = ''; document.getElementById('newSection').value = ''; document.getElementById('newImage').value = ''; document.getElementById('newMusic').value = '';
-      
       location.href = `/?section=${section}`;
     } catch(e) { alert('Error creating thread: ' + e.message); }
   };
   loadThreads();
 }
 
-// ... (Код для страницы настроек и треда остается таким же, как в прошлом сообщении) ...
+// --- СТРАНИЦА НАСТРОЕК ---
+if (document.getElementById('setNick')) {
+  if (currentUser) {
+    document.getElementById('setNick').value = currentUser.login;
+    document.getElementById('setAvatar').value = currentUser.avatar || '';
+  }
+
+  window.saveSettings = async function() {
+    if (!currentUser) return alert('Please login with GitHub first!');
+    const nick = document.getElementById('setNick').value.trim();
+    const avatar = document.getElementById('setAvatar').value.trim();
+    
+    if (!nick) return alert('Nickname cannot be empty');
+    
+    try {
+      const res = await fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUser.id, display_name: nick, avatar_url: avatar }) });
+      if (!res.ok) throw new Error('Save error');
+      
+      currentUser.login = nick; 
+      currentUser.avatar = avatar; 
+      localStorage.setItem('4oom_user', JSON.stringify(currentUser));
+      
+      alert('Settings saved!'); 
+      location.href = '/';
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+}
+
+// --- СТРАНИЦА ТРЕДА ---
+if (document.getElementById('postList')) {
+  const threadId = new URLSearchParams(location.search).get('id');
+  
+  window.deletePost = async function(postId) {
+    if (!confirm('Delete this post?')) return;
+    try {
+      const res = await fetch('/api/posts/delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: postId, user_role: currentUser ? currentUser.role : 'guest', user_login: currentUser ? currentUser.login : 'guest' })
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
+      loadPosts();
+    } catch(e) { alert('Error: ' + e.message); }
+  };
+
+  window.loadPosts = async function() {
+    if (!threadId) { location.href = '/'; return; }
+    try {
+      const r = await fetch('/api/posts?thread=' + threadId);
+      if (!r.ok) { if (r.status === 404) { alert('This thread has been deleted.'); location.href='/'; return; } }
+      const data = await r.json();
+      document.querySelector('.window__bar span').textContent = '📄 ' + data.thread.title;
+      
+      document.getElementById('postList').innerHTML = data.posts.map(function(p) {
+        let avatarHtml = p.author_avatar ? '<img src="' + p.author_avatar + '" class="post__avatar" alt="avatar">' : '<div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block; vertical-align: middle;"></div>';
+        const canDelete = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || p.author_name === currentUser.login);
+        const deleteBtn = canDelete ? `<button class="delete-btn" onclick="deletePost(${p.id})">delete</button>` : '';
+        let imgHtml = p.image_url ? '<img src="' + p.image_url + '" class="post__img" alt="image" onerror="this.style.display=\'none\'">' : '';
+        let audioHtml = p.music_url ? `<audio controls class="post__audio" src="${p.music_url}"></audio>` : '';
+        return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + formatName(p.author_name, p.author_role) + getRoleBadge(p.author_role) + deleteBtn + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + imgHtml + audioHtml + '</div></article>';
+      }).join('');
+    } catch(e) { document.getElementById('postList').innerHTML = 'Error loading thread'; }
+  };
+
+  document.getElementById('replyForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const body = document.getElementById('replyBody').value;
+    const image_url = document.getElementById('replyImage').value;
+    const music_url = document.getElementById('replyMusic').value;
+    if (!body) return;
+    try {
+      const res = await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body, image_url, music_url, author_name: currentUser ? currentUser.login : 'guest' }) });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Server error'); }
+      document.getElementById('replyBody').value = ''; document.getElementById('replyImage').value = ''; document.getElementById('replyMusic').value = '';
+      loadPosts();
+    } catch(e) { alert('Error sending: ' + e.message); }
+  });
+  loadPosts();
+}
