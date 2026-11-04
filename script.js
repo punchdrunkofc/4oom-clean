@@ -595,12 +595,10 @@ if (document.getElementById('setNick')) {
       const file = e.target.files[0]; if (!file) return; 
       const r = new FileReader(); 
       r.onload = ev => { 
-        i.src = ev.target.result; 
-        
-        c.style.display = 'block'; 
-        b.style.display = 'inline-block'; 
-        
-        requestAnimationFrame(() => {
+        i.onload = () => {
+          c.style.display = 'block'; 
+          b.style.display = 'inline-block'; 
+          
           requestAnimationFrame(() => {
             if (window['crop' + fileId]) {
               window['crop' + fileId].destroy(); 
@@ -619,7 +617,8 @@ if (document.getElementById('setNick')) {
               console.warn('Cropper.js is not loaded.');
             }
           });
-        });
+        };
+        i.src = ev.target.result; 
       }; 
       r.readAsDataURL(file); 
     });
