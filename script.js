@@ -47,7 +47,7 @@ function formatName(name, role, font) {
   return `<span style="${s}">${escapeHtml(name)}</span>`;
 }
 
-// Универсальная функция для применения фона (картинка или видео)
+
 function applyCustomBg(url) {
   const video = document.getElementById('bgVideo');
   if (!url) {
@@ -70,7 +70,7 @@ function applyCustomBg(url) {
   }
 }
 
-// Сброс фона (вызывается на всех страницах, кроме профиля)
+
 function resetVideoBg() {
   const video = document.getElementById('bgVideo');
   if (video) { video.pause(); video.style.display = 'none'; video.src = ''; }
@@ -78,7 +78,7 @@ function resetVideoBg() {
   document.body.style.backgroundColor = '#000';
 }
 
-// --- ПРОФИЛЬ ---
+
 if (document.getElementById('userName')) {
   const login = urlParams.get('user');
   if (!login) location.href = '/';
@@ -89,11 +89,11 @@ if (document.getElementById('userName')) {
       document.getElementById('userName').innerHTML = formatName(user.display_name, user.role, user.font_family);
       document.getElementById('userRole').innerHTML = getRoleBadge(user.role);
       
-      // ЭФФЕКТ НЕОЖИДАННОСТИ: Если зашли на профиль создателя, включаем видео
+
       if (user.display_name === 'PunchDrunk' || user.role === 'creator') {
         applyCustomBg('/bg.mp4');
       } else {
-        // Для остальных пользователей применяем картинку, если она есть
+
         if (user.background_url) {
           applyCustomBg(user.background_url);
         } else {
@@ -122,7 +122,6 @@ if (document.getElementById('userName')) {
   }
 }
 
-// --- ЧАТ ---
 if (document.getElementById('chatMessages')) {
   resetVideoBg();
   const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
@@ -166,7 +165,7 @@ if (document.getElementById('chatMessages')) {
   }
 }
 
-// --- ГЛАВНАЯ ---
+
 if (document.getElementById('threadList')) {
   resetVideoBg();
   fetch('/api/sections').then(r => r.json()).then(s => { 
@@ -254,7 +253,6 @@ if (document.getElementById('threadList')) {
   loadThreads();
 }
 
-// --- НАСТРОЙКИ ---
 if (document.getElementById('setNick')) {
   resetVideoBg();
   let avC = null, bnC = null, bgC = null;
@@ -334,7 +332,7 @@ if (document.getElementById('setNick')) {
   };
 }
 
-// --- ТРЕД ---
+
 if (document.getElementById('postList')) {
   resetVideoBg();
   const tid = urlParams.get('id');
