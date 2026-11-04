@@ -104,7 +104,7 @@ if (document.getElementById('userName')) {
       
       if (user.banner_url) { 
         const b = document.getElementById('userBanner'); b.src = user.banner_url; b.style.display = 'block'; 
-        document.getElementById('bannerContainer').style.display = 'block';
+        const bc = document.getElementById('bannerContainer'); if (bc) bc.style.display = 'block';
       }
       document.getElementById('userBio').textContent = user.bio || 'This user has not written a bio yet.';
       
@@ -118,7 +118,7 @@ if (document.getElementById('userName')) {
   }
 }
 
-// --- ЧАТ (WebSocket) ---
+// --- ЧАТ ---
 if (document.getElementById('chatMessages')) {
   resetVideoBg();
   const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
@@ -126,17 +126,13 @@ if (document.getElementById('chatMessages')) {
   if (currentUser) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}`);
-    
     ws.onopen = () => { chatMsgs.innerHTML = ''; };
-    
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      
       if (data.type === 'history') {
         chatMsgs.innerHTML = '';
-        if (data.messages.length === 0) {
-          chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No messages yet.</div>';
-        } else {
+        if (data.messages.length === 0) { chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No messages yet.</div>'; } 
+        else {
           data.messages.forEach(m => {
             const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
             div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="text-decoration: none;">${formatName(m.user, m.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(m.text)}</span>`;
@@ -145,20 +141,16 @@ if (document.getElementById('chatMessages')) {
           chatMsgs.scrollTop = chatMsgs.scrollHeight;
         }
       }
-
       if (data.type === 'chat') {
         const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
         div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="text-decoration: none;">${formatName(data.user, data.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(data.text)}</span>`;
         chatMsgs.appendChild(div); chatMsgs.scrollTop = chatMsgs.scrollHeight;
       }
-      
       if (data.type === 'online') {
         onlineUsers.innerHTML = data.users.length > 0 ? '🟢 Online: ' + data.users.map(u => `<a href="/profile.html?user=${encodeURIComponent(u)}" style="color: inherit;">${escapeHtml(u)}</a>`).join(', ') : '⚫ No one online';
       }
     };
-    
     ws.onclose = () => { onlineUsers.innerHTML = '⚫ Disconnected'; setTimeout(() => location.reload(), 5000); };
-    
     chatForm.addEventListener('submit', e => {
       e.preventDefault(); const t = chatInput.value.trim();
       if (t && ws.readyState === WebSocket.OPEN) { chatInput.value = ''; ws.send(JSON.stringify({ text: t })); }
@@ -176,10 +168,12 @@ if (document.getElementById('threadList')) {
   fetch('/api/sections').then(r => r.json()).then(s => { 
     dbSections = s.map(x => x.section_slug); 
     const sel = document.getElementById('sectionSelect'); 
-    [...new Set([...(typeof customSuggestions !== 'undefined' ? customSuggestions : []), ...dbSections])].sort().forEach(sec => { 
-      const o = document.createElement('option'); o.value = sec; o.textContent = sec; sel.appendChild(o); 
-    }); 
-    if (currentSection && currentSection !== 'my') sel.value = currentSection; 
+    if(sel){
+      [...new Set([...(typeof customSuggestions !== 'undefined' ? customSuggestions : []), ...dbSections])].sort().forEach(sec => { 
+        const o = document.createElement('option'); o.value = sec; o.textContent = sec; sel.appendChild(o); 
+      }); 
+      if (currentSection && currentSection !== 'my') sel.value = currentSection;
+    } 
   });
   
   const sIn = document.getElementById('newSection'), sBox = document.getElementById('sectionSuggestions');
@@ -200,11 +194,14 @@ if (document.getElementById('threadList')) {
     document.addEventListener('click', e => { if (e.target !== sIn && e.target !== sBox) sBox.style.display = 'none'; });
   }
   
-  if (!currentSection) document.getElementById('nav-home').style.fontWeight = 'bold';
-  if (currentSection === 'my') document.getElementById('nav-my').style.fontWeight = 'bold';
+  if (!currentSection) { const nh = document.getElementById('nav-home'); if(nh) nh.style.fontWeight = 'bold'; }
+  if (currentSection === 'my') { const nm = document.getElementById('nav-my'); if(nm) nm.style.fontWeight = 'bold'; }
   
   if (currentUser) {
-    document.getElementById('profileBox').innerHTML = `<a href="/profile.html?user=${encodeURIComponent(currentUser.login)}"><img src="${currentUser.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect width=%2280%22 height=%2280%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" class="avatar"></a><p class="profile__name"><a href="/profile.html?user=${encodeURIComponent(currentUser.login)}" style="text-decoration:none; color:inherit;">${formatName(currentUser.login, currentUser.role, currentUser.font)}</a> ${getRoleBadge(currentUser.role)}</p><p class="profile__status">online</p><button class="neon-btn" onclick="location.href='/settings.html'">settings</button><button class="neon-btn" onclick="localStorage.clear();location.reload()">logout</button>`;
+    const pb = document.getElementById('profileBox');
+    if(pb) {
+      pb.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(currentUser.login)}"><img src="${currentUser.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect width=%2280%22 height=%2280%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" class="avatar"></a><p class="profile__name"><a href="/profile.html?user=${encodeURIComponent(currentUser.login)}" style="text-decoration:none; color:inherit;">${formatName(currentUser.login, currentUser.role, currentUser.font)}</a> ${getRoleBadge(currentUser.role)}</p><p class="profile__status">online</p><button class="neon-btn" onclick="location.href='/settings.html'">settings</button><button class="neon-btn" onclick="localStorage.clear();location.reload()">logout</button>`;
+    }
   }
   
   window.deleteThread = async (id) => { 
@@ -265,18 +262,17 @@ if (document.getElementById('setNick')) {
   
   function updatePreview() {
     const n = document.getElementById('setNick').value || 'YourNickname', f = document.getElementById('setFont').value;
-    document.getElementById('previewName').textContent = n;
-    document.getElementById('previewName').style.fontFamily = f || 'var(--font-pixel)';
-    document.getElementById('previewAvatar').src = document.getElementById('setAvatar').value || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2230%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
+    const pn = document.getElementById('previewName'); if(pn) { pn.textContent = n; pn.style.fontFamily = f || 'var(--font-pixel)'; }
+    const pa = document.getElementById('previewAvatar'); if(pa) pa.src = document.getElementById('setAvatar').value || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2230%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
     const b = document.getElementById('setBanner').value;
-    document.getElementById('previewBanner').style.display = b ? 'block' : 'none';
-    if (b) document.getElementById('previewBanner').src = b;
-    document.getElementById('previewBio').textContent = document.getElementById('setBio').value || 'This user has not written a bio yet.';
-    document.getElementById('previewRole').innerHTML = getRoleBadge(currentUser ? currentUser.role : 'user');
+    const pb = document.getElementById('previewBanner'); if(pb) { pb.style.display = b ? 'block' : 'none'; if (b) pb.src = b; }
+    const bio = document.getElementById('setBio').value;
+    const pbio = document.getElementById('previewBio'); if(pbio) pbio.textContent = bio || 'This user has not written a bio yet.';
+    const pr = document.getElementById('previewRole'); if(pr) pr.innerHTML = getRoleBadge(currentUser ? currentUser.role : 'user');
   }
   
-  ['setNick', 'setBio'].forEach(id => document.getElementById(id).addEventListener('input', updatePreview));
-  document.getElementById('setFont').addEventListener('change', updatePreview);
+  ['setNick', 'setBio'].forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', updatePreview); });
+  const sf = document.getElementById('setFont'); if(sf) sf.addEventListener('change', updatePreview);
 
   const setupCrop = (fileId, containerId, imgId, btnId, ratio) => {
     const f = document.getElementById(fileId), c = document.getElementById(containerId), i = document.getElementById(imgId), b = document.getElementById(btnId);
@@ -299,4 +295,92 @@ if (document.getElementById('setNick')) {
   setupCrop('bgFile', 'bgCropperContainer', 'bgCropperImage', 'saveBgBtn', 16/9);
 
   window.applyAvatarCrop = () => { if (!window.cropavatarFile) return; document.getElementById('setAvatar').value = window.cropavatarFile.getCroppedCanvas({ width: 200, height: 200 }).toDataURL('image/jpeg', 0.85); document.getElementById('avatarCropperContainer').style.display = 'none'; document.getElementById('saveAvatarBtn').style.display = 'none'; updatePreview(); };
-  window.applyBannerCrop = () => { if (!window.cropbannerFile) return; document.getElementById('setBanner').value = window.cropbannerFile.getCroppedCanvas({ width: 1200, height: 400 }).toDataURL('image/jpeg', 0.85); document.getElementById('bannerCropperContainer').style.display = 'none'; document
+  window.applyBannerCrop = () => { if (!window.cropbannerFile) return; document.getElementById('setBanner').value = window.cropbannerFile.getCroppedCanvas({ width: 1200, height: 400 }).toDataURL('image/jpeg', 0.85); document.getElementById('bannerCropperContainer').style.display = 'none'; document.getElementById('saveBannerBtn').style.display = 'none'; updatePreview(); };
+  
+  window.applyBgCrop = () => {
+    if (!window.cropbgFile) return;
+    const b = window.cropbgFile.getCroppedCanvas({ width: 2560, height: 1440, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.9);
+    document.getElementById('setBg').value = b;
+    document.getElementById('bgCropperContainer').style.display = 'none'; 
+    document.getElementById('saveBgBtn').style.display = 'none';
+    applyCustomBg(b);
+    if (window.cropbgFile) { window.cropbgFile.destroy(); window.cropbgFile = null; }
+  };
+
+  if (currentUser) {
+    document.getElementById('setNick').value = currentUser.login;
+    fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(d => { 
+      if (d.user.avatar_url) document.getElementById('setAvatar').value = d.user.avatar_url; 
+      if (d.user.banner_url) document.getElementById('setBanner').value = d.user.banner_url; 
+      if (d.user.background_url) { 
+        document.getElementById('setBg').value = d.user.background_url; 
+        applyCustomBg(d.user.background_url);
+      } 
+      document.getElementById('setBio').value = d.user.bio || ''; 
+      if (document.getElementById('setFont')) document.getElementById('setFont').value = d.user.font_family || ''; 
+      updatePreview(); 
+    });
+  }
+  
+  window.saveSettings = async () => {
+    if (!currentUser) return alert('Login first!');
+    const n = document.getElementById('setNick').value.trim(), a = document.getElementById('setAvatar').value, b = document.getElementById('setBanner').value, bg = document.getElementById('setBg').value, bio = document.getElementById('setBio').value.trim(), f = document.getElementById('setFont').value;
+    if (!n) return alert('Nickname empty');
+    try {
+      const r = await fetch('/api/profile', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: currentUser.id, display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: bg }) });
+      if (!r.ok) throw new Error('Save error');
+      currentUser.login = n; currentUser.avatar = a; currentUser.font = f; localStorage.setItem('4oom_user', JSON.stringify(currentUser)); location.href = '/';
+    } catch(e) { alert(e.message); }
+  };
+}
+
+// --- ТРЕД ---
+if (document.getElementById('postList')) {
+  resetVideoBg();
+  const tid = urlParams.get('id');
+  
+  window.deletePost = async (id) => { 
+    if (!confirm('Delete?')) return; 
+    try { 
+      const r = await fetch('/api/posts/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ post_id: id, user_role: currentUser ? currentUser.role : 'guest', user_login: currentUser ? currentUser.login : 'guest' }) }); 
+      if (!r.ok) throw new Error((await r.json()).error); 
+      loadPosts(); 
+    } catch(e) { alert(e.message); } 
+  };
+  
+  window.loadPosts = async () => {
+    if (!tid) location.href = '/';
+    try {
+      const r = await fetch('/api/posts?thread=' + tid); 
+      if (!r.ok) { if (r.status === 404) { alert('Deleted'); location.href = '/'; return; } }
+      const data = await r.json(); 
+      document.querySelector('.window__bar span').textContent = '📄 ' + data.thread.title;
+
+      document.getElementById('postList').innerHTML = data.posts.map(p => {
+        const url = `/profile.html?user=${encodeURIComponent(p.author_name)}`;
+        const av = p.author_avatar ? `<a href="${url}"><img src="${p.author_avatar}" class="post__avatar"></a>` : `<a href="${url}"><div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block;"></div></a>`;
+        const canDel = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || p.author_name === currentUser.login);
+        return `<article class="post"><div class="post__head"><span class="post__author">${av}<a href="${url}" style="text-decoration:none; color:inherit;">${formatName(p.author_name, p.author_role, p.author_font)}</a>${getRoleBadge(p.author_role)}${canDel ? `<button class="delete-btn" onclick="deletePost(${p.id})">delete</button>` : ''}</span><span class="post__time">${new Date(p.created_at * 1000).toLocaleString()}</span></div><div class="post__body">${escapeHtml(p.body)}${p.image_url ? `<img src="${p.image_url}" class="post__img">` : ''}${p.music_url ? `<audio controls class="post__audio" src="${p.music_url}"></audio>` : ''}</div></article>`;
+      }).join('');
+    } catch(e) { document.getElementById('postList').innerHTML = 'Error'; }
+  };
+  
+  document.getElementById('replyForm').addEventListener('submit', async e => {
+    e.preventDefault(); 
+    const b = document.getElementById('replyBody').value;
+    const imgEl = document.getElementById('replyImageFile'); const img = imgEl ? imgEl.files[0] : null;
+    const musEl = document.getElementById('replyMusicFile'); const mus = musEl ? musEl.files[0] : null;
+    
+    if (!b) return;
+    try {
+      let iu = null, mu = null;
+      if (img) iu = await compressImage(img);
+      if (mus) mu = await new Promise(res => { const r = new FileReader(); r.onload = ev => res(ev.target.result); r.readAsDataURL(mus); });
+      
+      await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: tid, body: b, image_url: iu, music_url: mu, author_name: currentUser ? currentUser.login : 'guest' }) });
+      document.getElementById('replyBody').value = ''; if(imgEl) imgEl.value = ''; if(musEl) musEl.value = '';
+      loadPosts();
+    } catch(e) { alert(e.message); }
+  });
+  loadPosts();
+}
