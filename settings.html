@@ -24,11 +24,18 @@
       <label>Banner URL (profile header):</label>
       <input type="text" id="setBanner" placeholder="https://example.com/banner.jpg">
 
+      <label>Banner Position (how to crop):</label>
+      <select id="setBannerPos" style="width: 100%; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
+        <option value="center">Center (default)</option>
+        <option value="top">Top</option>
+        <option value="bottom">Bottom</option>
+      </select>
+
       <label>Bio / Description:</label>
       <textarea id="setBio" placeholder="Tell us about yourself..." style="width: 100%; height: 100px; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;"></textarea>
 
       <label>Nickname Font:</label>
-      <select id="setFont" style="width: 100%; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
+      <select id="setFont" style="width: 100%; margin-bottom: 8px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
         <option value="">Default (MS Sans Serif)</option>
         <option value="'Times New Roman', serif">Times New Roman</option>
         <option value="'Courier New', monospace">Courier New</option>
@@ -38,6 +45,11 @@
         <option value="Georgia, serif">Georgia</option>
         <option value="'Lucida Console', monospace">Lucida Console</option>
       </select>
+
+      <div style="padding: 8px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin-bottom: 12px; text-align: center;">
+        <span style="font-size: 11px; color: #444;">Preview:</span><br>
+        <span id="fontPreview" style="font-size: 20px; font-weight: bold; color: #000080;">YourNickname</span>
+      </div>
 
       <button class="neon-btn" onclick="saveSettings()">Save</button>
       <button class="neon-btn" onclick="location.href='/'">Cancel</button>
