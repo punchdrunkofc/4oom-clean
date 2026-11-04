@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>4OOM — Thread</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="header window">
+  <div class="window__bar"><span>▣ 4OOM.exe</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/settings'">⚙</button></div></div>
+  <nav class="nav"><a href="/" class="nav__link">← back to threads</a></nav>
+</header>
+<main class="layout layout--single">
+  <section class="window">
+    <div class="window__bar"><span>📄 Loading...</span></div>
+    <div id="postList"></div>
+    <div class="window__bar"><span>✍ reply</span></div>
+    <form class="reply-form" id="replyForm">
+      <textarea class="reply-form__textarea" id="replyBody" placeholder="type something..." rows="4"></textarea>
+      <input type="text" class="reply-form__input" id="replyImage" placeholder="Image URL (optional)">
+      <div class="reply-form__actions"><button type="submit" class="neon-btn">send</button></div>
+    </form>
+  </section>
+</main>
+<script src="/script.js"></script>
+</body>
+</html>
