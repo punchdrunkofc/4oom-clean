@@ -26,16 +26,6 @@ function formatName(name, role, font) {
   return `<span style="${style}">${escapeHtml(name)}</span>`;
 }
 
-function updatePreview() {
-  const nickInput = document.getElementById('setNick');
-  const fontSelect = document.getElementById('setFont');
-  const preview = document.getElementById('fontPreview');
-  if (preview && nickInput && fontSelect) {
-    preview.textContent = nickInput.value || 'YourNickname';
-    preview.style.fontFamily = fontSelect.value || 'var(--font-pixel)';
-  }
-}
-
 // --- СТРАНИЦА ПРОФИЛЯ ---
 if (document.getElementById('userName')) {
   const profileLogin = urlParams.get('user');
@@ -189,7 +179,6 @@ if (document.getElementById('threadList')) {
         const deleteBtn = canDelete ? `<button class="delete-btn" onclick="deleteThread(${t.first_post_id})">delete</button>` : '';
         const sectionBadge = (!currentSection || currentSection === 'my') ? `<span style="font-size:10px; color:#000080; margin-right:4px;">[${t.section_slug}]</span>` : '';
         
-        // ИСПРАВЛЕНИЕ ВЕРСТКИ
         return `<li class="thread" style="text-align: left; display: flex; justify-content: space-between; align-items: center;">
           <div style="flex-grow: 1;">
             <a href="/thread.html?id=${t.id}" style="text-decoration: none; color: inherit;">
@@ -224,8 +213,47 @@ if (document.getElementById('threadList')) {
 // --- СТРАНИЦА НАСТРОЕК ---
 if (document.getElementById('setNick')) {
   
-  document.getElementById('setNick').addEventListener('input', updatePreview);
-  document.getElementById('setFont').addEventListener('change', updatePreview);
+  function updateLivePreview() {
+    const nick = document.getElementById('setNick').value || 'YourNickname';
+    const font = document.getElementById('setFont').value;
+    const previewName = document.getElementById('previewName');
+    if (previewName) {
+      previewName.textContent = nick;
+      previewName.style.fontFamily = font || 'var(--font-pixel)';
+    }
+
+    const avatar = document.getElementById('setAvatar').value;
+    const previewAvatar = document.getElementById('previewAvatar');
+    if (previewAvatar) previewAvatar.src = avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2230%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
+
+    const banner = document.getElementById('setBanner').value;
+    const bannerPos = document.getElementById('setBannerPos').value;
+    const previewBanner = document.getElementById('previewBanner');
+    if (previewBanner) {
+      if (banner) {
+        previewBanner.src = banner;
+        previewBanner.style.display = 'block';
+        previewBanner.style.objectPosition = bannerPos;
+      } else {
+        previewBanner.style.display = 'none';
+      }
+    }
+
+    const bio = document.getElementById('setBio').value;
+    const previewBio = document.getElementById('previewBio');
+    if (previewBio) previewBio.textContent = bio || 'This user has not written a bio yet.';
+
+    if (currentUser) {
+      document.getElementById('previewRole').innerHTML = getRoleBadge(currentUser.role);
+    }
+  }
+
+  document.getElementById('setNick').addEventListener('input', updateLivePreview);
+  document.getElementById('setAvatar').addEventListener('input', updateLivePreview);
+  document.getElementById('setBanner').addEventListener('input', updateLivePreview);
+  document.getElementById('setBannerPos').addEventListener('change', updateLivePreview);
+  document.getElementById('setBio').addEventListener('input', updateLivePreview);
+  document.getElementById('setFont').addEventListener('change', updateLivePreview);
 
   if (currentUser) {
     document.getElementById('setNick').value = currentUser.login;
@@ -236,7 +264,7 @@ if (document.getElementById('setNick')) {
       document.getElementById('setBannerPos').value = data.user.banner_position || 'center';
       document.getElementById('setBio').value = data.user.bio || '';
       if(document.getElementById('setFont')) document.getElementById('setFont').value = data.user.font_family || '';
-      updatePreview(); 
+      updateLivePreview(); 
     });
   }
 
