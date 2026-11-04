@@ -1,4 +1,4 @@
- function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 function compressImage(file, maxWidth = 800) {
   return new Promise((res, rej) => {
@@ -499,6 +499,85 @@ if (document.getElementById('postList')) {
     } catch(e) { alert(e.message); }
   });
   loadPosts();
+}
+
+// --- НАСТРОЙКИ (РЕДАКТОР ПРОФИЛЯ) ---
+if (document.getElementById('setNick')) {
+  resetVideoBg();
+  let avC = null, bnC = null, bgC = null;
+  
+  window.updatePreview = function() {
+    const n = document.getElementById('setNick').value || 'YourNickname', f = document.getElementById('setFont').value;
+    const pn = document.getElementById('previewName'); if(pn) { pn.textContent = n; pn.style.fontFamily = f || 'var(--font-pixel)'; }
+    const pa = document.getElementById('previewAvatar'); if(pa) pa.src = document.getElementById('setAvatar').value || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2230%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
+    const b = document.getElementById('setBanner').value;
+    const pb = document.getElementById('previewBanner'); if(pb) { pb.style.display = b ? 'block' : 'none'; if (b) pb.src = b; }
+    const bio = document.getElementById('setBio').value;
+    const pbio = document.getElementById('previewBio'); if(pbio) pbio.textContent = bio || 'This user has not written a bio yet.';
+    const pr = document.getElementById('previewRole'); if(pr) pr.innerHTML = getRoleBadge(currentUser ? currentUser.role : 'user');
+  }
+  
+  ['setNick', 'setBio'].forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', window.updatePreview); });
+  const sf = document.getElementById('setFont'); if(sf) sf.addEventListener('change', window.updatePreview);
+
+  const setupCrop = (fileId, containerId, imgId, btnId, ratio) => {
+    const f = document.getElementById(fileId), c = document.getElementById(containerId), i = document.getElementById(imgId), b = document.getElementById(btnId);
+    if (f && typeof Cropper !== 'undefined') {
+      f.addEventListener('change', e => { 
+        const file = e.target.files[0]; if (!file) return; 
+        const r = new FileReader(); 
+        r.onload = ev => { 
+          i.src = ev.target.result; c.style.display = 'block'; b.style.display = 'inline-block'; 
+          if (window['crop' + fileId]) window['crop' + fileId].destroy(); 
+          window['crop' + fileId] = new Cropper(i, { aspectRatio: ratio, viewMode: 1 }); 
+        }; 
+        r.readAsDataURL(file); 
+      });
+    }
+  };
+  
+  setupCrop('avatarFile', 'avatarCropperContainer', 'avatarCropperImage', 'saveAvatarBtn', 1);
+  setupCrop('bannerFile', 'bannerCropperContainer', 'bannerCropperImage', 'saveBannerBtn', 3);
+  setupCrop('bgFile', 'bgCropperContainer', 'bgCropperImage', 'saveBgBtn', 16/9);
+
+  window.applyAvatarCrop = () => { if (!window.cropavatarFile) return; document.getElementById('setAvatar').value = window.cropavatarFile.getCroppedCanvas({ width: 200, height: 200 }).toDataURL('image/jpeg', 0.85); document.getElementById('avatarCropperContainer').style.display = 'none'; document.getElementById('saveAvatarBtn').style.display = 'none'; window.updatePreview(); };
+  window.applyBannerCrop = () => { if (!window.cropbannerFile) return; document.getElementById('setBanner').value = window.cropbannerFile.getCroppedCanvas({ width: 1200, height: 400 }).toDataURL('image/jpeg', 0.85); document.getElementById('bannerCropperContainer').style.display = 'none'; document.getElementById('saveBannerBtn').style.display = 'none'; window.updatePreview(); };
+  
+  window.applyBgCrop = () => {
+    if (!window.cropbgFile) return;
+    const b = window.cropbgFile.getCroppedCanvas({ width: 2560, height: 1440, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.9);
+    document.getElementById('setBg').value = b;
+    document.getElementById('bgCropperContainer').style.display = 'none'; 
+    document.getElementById('saveBgBtn').style.display = 'none';
+    applyCustomBg(b);
+    if (window.cropbgFile) { window.cropbgFile.destroy(); window.cropbgFile = null; }
+  };
+
+  if (currentUser) {
+    document.getElementById('setNick').value = currentUser.login;
+    fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(d => { 
+      if (d.user.avatar_url) document.getElementById('setAvatar').value = d.user.avatar_url; 
+      if (d.user.banner_url) document.getElementById('setBanner').value = d.user.banner_url; 
+      if (d.user.background_url) { 
+        document.getElementById('setBg').value = d.user.background_url; 
+        applyCustomBg(d.user.background_url);
+      } 
+      document.getElementById('setBio').value = d.user.bio || ''; 
+      if (document.getElementById('setFont')) document.getElementById('setFont').value = d.user.font_family || ''; 
+      window.updatePreview(); 
+    });
+  }
+  
+  window.saveSettings = async () => {
+    if (!currentUser) return alert('Login first!');
+    const n = document.getElementById('setNick').value.trim(), a = document.getElementById('setAvatar').value, b = document.getElementById('setBanner').value, bg = document.getElementById('setBg').value, bio = document.getElementById('setBio').value.trim(), f = document.getElementById('setFont').value;
+    if (!n) return alert('Nickname empty');
+    try {
+      const r = await fetch('/api/profile', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: currentUser.id, display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: bg }) });
+      if (!r.ok) throw new Error('Save error');
+      currentUser.login = n; currentUser.avatar = a; currentUser.font = f; localStorage.setItem('4oom_user', JSON.stringify(currentUser)); location.href = '/';
+    } catch(e) { alert(e.message); }
+  };
 }
 
 // ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ ОТПРАВКИ ЗАПРОСА В ДРУЗЬЯ
