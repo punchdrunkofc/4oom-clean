@@ -11,12 +11,11 @@
   .preview-container { margin-top: 12px; border: 2px solid var(--win-dark); background: var(--win-bg); }
   .preview-banner { width: 100%; height: 100px; background: #808080; object-fit: cover; display: block; border-bottom: 2px solid var(--win-dark); }
   .preview-bio { padding: 8px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px; font-family: 'Times New Roman', serif; min-height: 40px; font-size: 12px; }
-  #avatarCropperContainer, #bannerCropperContainer, #bgCropperContainer { width: 100%; height: 300px; background: #000; margin-bottom: 12px; display: none; }
+  .cropper-container { width: 100%; height: 300px; background: #000; margin-bottom: 12px; display: none; }
   .crop-img { max-width: 100%; display: block; }
 </style>
 </head>
 <body>
-<!-- Видео-фон для профиля -->
 <video id="bgVideo" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none; filter: sepia(1) hue-rotate(220deg) saturate(3) brightness(0.6);"></video>
 
 <header class="header window">
@@ -32,7 +31,7 @@
       
       <label>Upload Avatar (Square):</label>
       <input type="file" id="avatarFile" accept="image/*" style="margin-bottom: 8px;">
-      <div id="avatarCropperContainer">
+      <div id="avatarCropperContainer" class="cropper-container">
         <img id="avatarCropperImage" class="crop-img" src="" alt="Avatar to crop">
       </div>
       <button type="button" id="saveAvatarBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyAvatarCrop()">Apply Avatar Crop</button>
@@ -40,7 +39,7 @@
 
       <label>Upload Profile Banner (Wide):</label>
       <input type="file" id="bannerFile" accept="image/*" style="margin-bottom: 8px;">
-      <div id="bannerCropperContainer">
+      <div id="bannerCropperContainer" class="cropper-container">
         <img id="bannerCropperImage" class="crop-img" src="" alt="Banner to crop">
       </div>
       <button type="button" id="saveBannerBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyBannerCrop()">Apply Banner Crop</button>
@@ -48,7 +47,7 @@
 
       <label>Upload Custom Background (Image):</label>
       <input type="file" id="bgFile" accept="image/*" style="margin-bottom: 8px;">
-      <div id="bgCropperContainer">
+      <div id="bgCropperContainer" class="cropper-container">
         <img id="bgCropperImage" class="crop-img" src="" alt="Background to crop">
       </div>
       <button type="button" id="saveBgBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyBgCrop()">Apply Background</button>
@@ -69,8 +68,8 @@
         <option value="'Lucida Console', monospace">Lucida Console</option>
       </select>
 
-      <button class="neon-btn" onclick="saveSettings()">Save</button>
-      <button class="neon-btn" onclick="location.href='/'">Cancel</button>
+      <button class="neon-btn" id="saveBtn">SAVE</button>
+      <button class="neon-btn" id="cancelBtn">CANCEL</button>
     </div>
   </section>
 
