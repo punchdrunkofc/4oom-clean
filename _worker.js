@@ -100,9 +100,10 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // Треды (с фильтрацией по разделу)
+      // Треды (с фильтрацией по разделу или автору)
       if (url.pathname === '/api/threads' && request.method === 'GET') {
         const section = url.searchParams.get('section');
+        const my = url.searchParams.get('my');
         
         let query = `
           SELECT t.*, u.role AS author_role,
@@ -112,13 +113,15 @@ export default {
           LEFT JOIN users u ON t.author_name = u.display_name
         `;
         
-        // Если передан раздел, добавляем WHERE
         if (section) {
           query += ` WHERE t.section_slug = ? GROUP BY t.id HAVING reply_count > 0 ORDER BY t.updated_at DESC LIMIT 100`;
           const { results } = await env.DB.prepare(query).bind(section).all();
           return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        } else if (my) {
+          query += ` WHERE t.author_name = ? GROUP BY t.id HAVING reply_count > 0 ORDER BY t.updated_at DESC LIMIT 100`;
+          const { results } = await env.DB.prepare(query).bind(my).all();
+          return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
         } else {
-          // Если раздела нет (главная), отдаем все треды
           query += ` GROUP BY t.id HAVING reply_count > 0 ORDER BY t.updated_at DESC LIMIT 100`;
           const { results } = await env.DB.prepare(query).all();
           return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
