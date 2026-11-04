@@ -7,8 +7,8 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<!-- Контейнер для видео-фона -->
-<video id="bgVideo" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none;"></video>
+<!-- Видео-фон с фиолетовым фильтром -->
+<video id="bgVideo" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none; filter: sepia(1) hue-rotate(220deg) saturate(3) brightness(0.6);"></video>
 
 <header class="header window">
   <div class="window__bar"><span>4OOM</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/settings.html'">⚙</button></div></div>
@@ -88,19 +88,12 @@
 <section class="window" style="max-width: 1000px; margin: 12px auto;">
   <div class="window__bar"><span>📜 4OOM FORUM RULES</span></div>
   <div style="padding: 16px; font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.6; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 12px;">
-    
     <p style="margin-bottom: 12px;"><b>1. Respect and Freedom:</b> Be human. No insults, bullying, threats, or hate speech. Freedom of speech doesn't mean freedom from consequences. Argue with arguments, not with people.</p>
-    
     <p style="margin-bottom: 12px;"><b>2. Content:</b> No illegal content (NSFL, weapons, etc.). If you post NSFW (18+), mark it in the title. No spam, ads, or massive piracy.</p>
-    
     <p style="margin-bottom: 12px;"><b>3. Tech & Security:</b> Don't break the forum (no hacking, DDoS, exploits). Don't upload files larger than 5 MB to the database. One person - one account.</p>
-    
-    <p style="margin-bottom: 12px;"><b>4. Moderation:</b> Admins (Creator, Moderator, Editor) can delete posts and issue bans. Don't argue with moderation in threads - write to a mod in chat. Don't impersonate admins.</p>
-    
+    <p style="margin-bottom: 12px;"><b>4. Moderation:</b> Admins (Creator, Mod, Editor) can delete posts and issue bans. Don't argue with moderation in threads - write to a mod in chat. Don't impersonate admins.</p>
     <p style="margin-bottom: 12px;"><b>5. Chat:</b> The chat is a smoking room. Flood with images/music is ok, but respect applies. No spam to inflate the "online" count.</p>
-
     <p style="margin-bottom: 12px; color: #800000;"><b>⚠️ Sanctions:</b> 1st - warning. 2nd - 24h ban. 3rd - 7d ban. Severe violations (NSFL, hacking, harassment) - permanent ban.</p>
-
     <div style="margin-top: 20px; padding-top: 12px; border-top: 1px dashed #ccc; text-align: center; color: #800000; font-weight: bold; font-size: 15px;">
       <p>The main rule: Don't be an asshole. This forum exists for the pleasure and nostalgia of the old internet. If you want to contribute - share music, images, create threads. If you want to start a fight - go to Twitter.</p>
       <p style="margin-top: 8px; color: #000080;">Have a pleasant stay!</p>
