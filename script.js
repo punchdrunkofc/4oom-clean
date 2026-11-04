@@ -62,8 +62,11 @@ if (document.getElementById('userName')) {
       if (user.display_name === 'PunchDrunk' || user.role === 'creator') {
         const video = document.getElementById('bgVideo');
         if (video) {
-          video.src = '/bg.mp4';
+          if (video.src.indexOf('/bg.mp4') === -1) {
+            video.src = '/bg.mp4';
+          }
           video.style.display = 'block';
+          video.currentTime = 0; // Начинаем с начала
           video.play().catch(e => console.log('Autoplay blocked'));
           document.body.style.backgroundImage = 'none'; // Убираем звезды
         }
