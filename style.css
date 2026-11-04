@@ -1,4 +1,4 @@
- :root {
+:root {
   --win-bg: #c0c0c0;
   --win-dark: #808080;
   --win-light: #ffffff;
@@ -13,15 +13,15 @@ body {
   font-family: var(--font-pixel);
   font-size: 13px;
   background-color: #000;
+  /* Звездный фон в стиле GeoCities */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23000'/%3E%3Ccircle cx='10' cy='10' r='1' fill='%23fff'/%3E%3Ccircle cx='50' cy='50' r='1.5' fill='%23fff'/%3E%3Ccircle cx='80' cy='20' r='1' fill='%23fff'/%3E%3Ccircle cx='30' cy='80' r='1' fill='%23fff'/%3E%3Ccircle cx='90' cy='90' r='1.5' fill='%23fff'/%3E%3C/svg%3E");
   background-repeat: repeat;
   color: #000;
   min-height: 100vh;
   padding: 12px;
-  transition: background 0.3s;
 }
 
-
+/* Окна в стиле Windows 95 */
 .window {
   background: var(--win-bg);
   border: 2px solid;
@@ -51,6 +51,7 @@ body {
   line-height: 1;
 }
 
+/* Шапка */
 .header__body {
   display: flex;
   align-items: center;
@@ -59,6 +60,7 @@ body {
   gap: 8px;
 }
 
+.logo {
   font-family: 'Impact', sans-serif;
   font-size: 36px;
   letter-spacing: 2px;
@@ -82,6 +84,7 @@ body {
   padding: 2px;
 }
 
+/* Навигация */
 .nav {
   display: flex;
   flex-wrap: wrap;
@@ -127,6 +130,7 @@ body {
   color: #fff;
 }
 
+/* Сетка */
 .layout {
   display: grid;
   grid-template-columns: 1fr 280px;
@@ -139,6 +143,7 @@ body {
   grid-template-columns: 1fr;
 }
 
+/* Треды */
 .thread-list {
   list-style: none;
   padding: 6px;
@@ -180,6 +185,7 @@ body {
   border-bottom: 1px solid #808080;
 }
 
+/* Кнопки */
 .neon-btn {
   display: inline-block;
   margin: 4px;
@@ -203,6 +209,7 @@ body {
   border-color: #808080 #fff #fff #808080;
 }
 
+/* Профиль */
 .profile__body {
   padding: 12px;
   text-align: center;
@@ -231,6 +238,12 @@ body {
   color: #444;
 }
 
+.stats {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+/* Посты */
 .post {
   padding: 8px 12px;
   border-bottom: 1px solid #a0a0a0;
@@ -280,6 +293,7 @@ body {
   display: block;
 }
 
+/* Формы */
 .reply-form, .settings-form {
   padding: 12px;
 }
@@ -295,6 +309,7 @@ body {
   margin-bottom: 8px;
 }
 
+/* Подвал */
 .footer {
   max-width: 1000px;
   margin: 16px auto 0;
@@ -306,6 +321,7 @@ body {
   border: 1px solid #444;
 }
 
+/* Бейджи ролей */
 .role-badge {
   display: inline-block;
   padding: 2px 6px;
@@ -319,6 +335,7 @@ body {
 .role-moderator { background: #006400; }
 .role-editor { background: #000080; }
 
+/* Радужный ник создателя */
 .creator-name {
   font-weight: bold;
   background: linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000);
@@ -333,6 +350,7 @@ body {
   100% { background-position: 200% center; }
 }
 
+/* Градиент для модератора */
 .moderator-name {
   font-weight: bold;
   background: linear-gradient(to right, #ffffff, #ff7f00, #ff0000, #ff7f00, #ffffff);
@@ -347,6 +365,7 @@ body {
   100% { background-position: 200% center; }
 }
 
+/* Глиттерный бейдж */
 .role-creator-glitter {
   display: inline-block;
   padding: 2px 8px;
@@ -360,6 +379,7 @@ body {
   background-repeat: no-repeat;
 }
 
+/* Кнопка удаления */
 .delete-btn {
   background: #ffcccc;
   border: 1px solid #800000;
@@ -376,6 +396,7 @@ body {
   color: #fff;
 }
 
+/* Выпадающие подсказки */
 #sectionSuggestions {
   position: absolute;
   left: 0;
@@ -405,4 +426,26 @@ body {
 #sectionSuggestions div:hover {
   background: #000080;
   color: #fff;
+}
+
+/* === СТИЛИ ДЛЯ МЕССЕНДЖЕРА === */
+#msgrFriendsList div:hover {
+  background: #e0e0e0;
+}
+
+#msgrChatBox {
+  background: #fff;
+}
+
+#msgrInput {
+  font-family: var(--font-pixel);
+}
+
+/* === СТИЛИ ДЛЯ УВЕДОМЛЕНИЙ === */
+#notifDropdown {
+  font-family: var(--font-pixel);
+}
+
+#notifList div:hover {
+  background: #f0f0f0;
 }
