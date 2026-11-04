@@ -44,10 +44,20 @@ export default {
           dbUser = await env.DB.prepare(`SELECT * FROM users WHERE github_id = ?`).bind(user.id).first();
         }
 
-        const userJson = JSON.stringify({ id: dbUser.id, login: dbUser.display_name, avatar: dbUser.avatar_url, role: dbUser.role, font: dbUser.font_family });
+        const userJson = JSON.stringify({ 
+          id: dbUser.id, 
+          login: dbUser.display_name, 
+          avatar: dbUser.avatar_url, 
+          role: dbUser.role, 
+          font: dbUser.font_family,
+          theme: dbUser.theme || 'dark',
+          bg: dbUser.background || 'stars'
+        });
 
         return new Response(`<!DOCTYPE html><html><body><script>
           localStorage.setItem('4oom_user', JSON.stringify(${userJson}));
+          localStorage.setItem('4oom_theme', '${dbUser.theme || 'dark'}');
+          localStorage.setItem('4oom_bg', '${dbUser.background || 'stars'}');
           location.href = '/';
         </script></body></html>`, { headers: { 'Content-Type': 'text/html' } });
       } catch (e) {
@@ -71,7 +81,11 @@ export default {
         const login = url.searchParams.get('login');
         if (!login) return new Response(JSON.stringify({ error: 'No login provided' }), { status: 400, headers: cors });
         
-        const user = await env.DB.prepare(`SELECT id, display_name, avatar_url, banner_url, bio, role, font_family FROM users WHERE display_name = ?`).bind(login).first();
+        const user = await env.DB.prepare(`
+          SELECT id, display_name, avatar_url, banner_url, banner_position, bio, role, font_family, theme, background 
+          FROM users WHERE display_name = ?
+        `).bind(login).first();
+        
         if (!user) return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: cors });
 
         const { results: threads } = await env.DB.prepare(`
@@ -87,12 +101,27 @@ export default {
       if (url.pathname === '/api/profile' && request.method === 'POST') {
         const body = await request.json();
         if (!body.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
-        await env.DB.prepare(`UPDATE users SET display_name = ?, avatar_url = ?, banner_url = ?, bio = ?, font_family = ? WHERE id = ?`)
-          .bind(body.display_name, body.avatar_url, body.banner_url || null, body.bio || null, body.font_family || null, body.user_id).run();
+        
+        await env.DB.prepare(`
+          UPDATE users 
+          SET display_name = ?, avatar_url = ?, banner_url = ?, banner_position = ?, bio = ?, font_family = ?, theme = ?, background = ? 
+          WHERE id = ?
+        `).bind(
+          body.display_name, 
+          body.avatar_url, 
+          body.banner_url || null, 
+          body.banner_position || 'center', 
+          body.bio || null, 
+          body.font_family || null, 
+          body.theme || 'dark', 
+          body.background || 'stars', 
+          body.user_id
+        ).run();
+        
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ... остальной код API (sections, threads, posts, delete) ...
+      // ... ОСТАЛЬНОЙ КОД API (sections, threads, posts, delete) ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ ...
       
       if (url.pathname === '/api/sections' && request.method === 'GET') {
         const { results } = await env.DB.prepare(`SELECT DISTINCT section_slug FROM threads ORDER BY section_slug ASC`).all();
