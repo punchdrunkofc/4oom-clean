@@ -1,4 +1,4 @@
-name = "4oom-clean"
+ name = "4oom-clean"
 main = "_worker.js"
 compatibility_date = "2026-11-04"
 
