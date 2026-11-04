@@ -22,11 +22,23 @@ function formatName(name, role) {
 // --- ГЛАВНАЯ СТРАНИЦА ---
 if (document.getElementById('threadList')) {
   
+  // Загружаем список всех разделов для меню
+  fetch('/api/sections').then(r => r.json()).then(sections => {
+    const select = document.getElementById('sectionSelect');
+    sections.forEach(sec => {
+      const opt = document.createElement('option');
+      opt.value = sec.section_slug;
+      opt.textContent = sec.section_slug;
+      select.appendChild(opt);
+    });
+    if (currentSection && currentSection !== 'my') {
+      select.value = currentSection;
+    }
+  });
+
   // Подсветка активной вкладки
   if (!currentSection) {
     document.getElementById('nav-home').style.fontWeight = 'bold';
-  } else if (currentSection === 'general') {
-    document.getElementById('nav-general').style.fontWeight = 'bold';
   } else if (currentSection === 'my') {
     document.getElementById('nav-my').style.fontWeight = 'bold';
   }
@@ -65,7 +77,7 @@ if (document.getElementById('threadList')) {
       let endpoint = '/api/threads';
       if (currentSection === 'my' && currentUser) {
         endpoint = `/api/threads?my=${encodeURIComponent(currentUser.login)}`;
-      } else if (currentSection && currentSection !== 'my') {
+      } else if (currentSection) {
         endpoint = `/api/threads?section=${currentSection}`;
       }
 
@@ -100,17 +112,35 @@ if (document.getElementById('threadList')) {
   window.submitThread = async function() {
     const title = document.getElementById('newTitle').value;
     const body = document.getElementById('newBody').value;
-    const section = document.getElementById('newSection').value; // Берем выбранный раздел
+    const section = document.getElementById('newSection').value.trim().toLowerCase().replace(/\s+/g, '-');
     const image_url = document.getElementById('newImage').value;
     const music_url = document.getElementById('newMusic').value;
     
-    if (!title || !body) return alert('Fill in title and text');
+    if (!title || !body || !section) return alert('Fill in title, text, and board name');
+
+    // ПРОВЕРКА: существует ли такой раздел уже?
+    try {
+      const secRes = await fetch('/api/sections');
+      const sections = await secRes.json();
+      const exists = sections.find(s => s.section_slug === section);
+
+      if (exists) {
+        const confirmPost = confirm(`The board "/${section}/" already exists. Do you want to post this thread there?`);
+        if (!confirmPost) return; // Если передумал, отменяем
+      }
+    } catch (e) {
+      console.error('Failed to check sections', e);
+    }
+
+    // Создаем тред
     try {
       const res = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, image_url, music_url, section_slug: section, author_name: currentUser ? currentUser.login : 'guest' }) });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Server error'); }
       document.getElementById('createForm').style.display = 'none';
-      document.getElementById('newTitle').value = ''; document.getElementById('newBody').value = ''; document.getElementById('newImage').value = ''; document.getElementById('newMusic').value = '';
-      loadThreads();
+      document.getElementById('newTitle').value = ''; document.getElementById('newBody').value = ''; document.getElementById('newSection').value = ''; document.getElementById('newImage').value = ''; document.getElementById('newMusic').value = '';
+      
+      // Перенаправляем в созданный раздел, чтобы увидеть свой тред
+      location.href = `/?section=${section}`;
     } catch(e) { alert('Error creating thread: ' + e.message); }
   };
   loadThreads();
