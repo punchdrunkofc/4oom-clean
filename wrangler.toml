@@ -3,6 +3,9 @@ main = "_worker.js"
 compatibility_date = "2026-11-04"
 workers_dev = true
 
+[assets]
+directory = "."
+
 [[d1_databases]]
 binding = "DB"
 database_name = "4oom-db"
