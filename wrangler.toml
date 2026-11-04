@@ -10,3 +10,6 @@ binding = "DB"
 database_name = "4oom-db"
 database_id = "2dbdb197-286d-4e55-a679-14224d5cd58a"
 
+[[migrations]]
+tag = "v2"
+renamed_classes = [{ from = "ChatRoom", to = "ChatRoomDisabled" }]
