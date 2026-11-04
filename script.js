@@ -8,6 +8,7 @@ const urlParams = new URLSearchParams(window.location.search);
 const currentSection = urlParams.get('section');
 
 let dbSections = [];
+let cropper = null; // Переменная для Cropper.js
 
 function getRoleBadge(role) {
   if (!role || role === 'user') return '';
@@ -60,7 +61,10 @@ if (document.getElementById('userName')) {
           const banner = document.getElementById('userBanner');
           banner.src = user.banner_url;
           banner.style.display = 'block';
-          banner.style.objectPosition = user.banner_position || 'center';
+          // Если это не Base64 (старый формат), применяем позицию
+          if (!user.banner_url.startsWith('data:image')) {
+            banner.style.objectPosition = user.banner_position || 'center';
+          }
         }
         
         document.getElementById('userBio').textContent = user.bio || 'This user has not written a bio yet.';
@@ -226,14 +230,13 @@ if (document.getElementById('setNick')) {
     const previewAvatar = document.getElementById('previewAvatar');
     if (previewAvatar) previewAvatar.src = avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2230%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
 
+    // Баннер берем из скрытого инпута (Base64)
     const banner = document.getElementById('setBanner').value;
-    const bannerPos = document.getElementById('setBannerPos').value;
     const previewBanner = document.getElementById('previewBanner');
     if (previewBanner) {
       if (banner) {
         previewBanner.src = banner;
         previewBanner.style.display = 'block';
-        previewBanner.style.objectPosition = bannerPos;
       } else {
         previewBanner.style.display = 'none';
       }
@@ -250,18 +253,67 @@ if (document.getElementById('setNick')) {
 
   document.getElementById('setNick').addEventListener('input', updateLivePreview);
   document.getElementById('setAvatar').addEventListener('input', updateLivePreview);
-  document.getElementById('setBanner').addEventListener('input', updateLivePreview);
-  document.getElementById('setBannerPos').addEventListener('change', updateLivePreview);
   document.getElementById('setBio').addEventListener('input', updateLivePreview);
   document.getElementById('setFont').addEventListener('change', updateLivePreview);
+
+  // ЛОГИКА ЗАГРУЗКИ И ОБРЕЗКИ БАННЕРА
+  const bannerFileInput = document.getElementById('bannerFile');
+  const cropperContainer = document.getElementById('cropperContainer');
+  const cropperImage = document.getElementById('cropperImage');
+  const saveCropBtn = document.getElementById('saveCropBtn');
+
+  if (bannerFileInput) {
+    bannerFileInput.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        cropperImage.src = event.target.result;
+        cropperContainer.style.display = 'block';
+        saveCropBtn.style.display = 'inline-block';
+
+        if (cropper) cropper.destroy();
+        // Настраиваем пропорции баннера (например, 3:1)
+        cropper = new Cropper(cropperImage, {
+          aspectRatio: 3,
+          viewMode: 1,
+          autoCropArea: 1,
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  window.applyCrop = function() {
+    if (!cropper) return;
+    
+    // Получаем обрезанное изображение в формате Base64
+    // Указываем ширину 600px для оптимизации веса
+    const canvas = cropper.getCroppedCanvas({
+      width: 600,
+      height: 200
+    });
+    
+    const base64Image = canvas.toDataURL('image/jpeg', 0.8); // Сжимаем в JPEG
+    
+    document.getElementById('setBanner').value = base64Image;
+    cropperContainer.style.display = 'none';
+    saveCropBtn.style.display = 'none';
+    if (cropper) { cropper.destroy(); cropper = null; }
+    
+    updateLivePreview(); // Обновляем предпросмотр
+  };
 
   if (currentUser) {
     document.getElementById('setNick').value = currentUser.login;
     document.getElementById('setAvatar').value = currentUser.avatar || '';
     
     fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(data => {
-      document.getElementById('setBanner').value = data.user.banner_url || '';
-      document.getElementById('setBannerPos').value = data.user.banner_position || 'center';
+      // Если баннер уже есть (Base64), ставим его в скрытый инпут
+      if (data.user.banner_url && data.user.banner_url.startsWith('data:image')) {
+        document.getElementById('setBanner').value = data.user.banner_url;
+      }
       document.getElementById('setBio').value = data.user.bio || '';
       if(document.getElementById('setFont')) document.getElementById('setFont').value = data.user.font_family || '';
       updateLivePreview(); 
@@ -272,8 +324,7 @@ if (document.getElementById('setNick')) {
     if (!currentUser) return alert('Please login with GitHub first!');
     const nick = document.getElementById('setNick').value.trim();
     const avatar = document.getElementById('setAvatar').value.trim();
-    const banner = document.getElementById('setBanner').value.trim();
-    const bannerPos = document.getElementById('setBannerPos').value;
+    const banner = document.getElementById('setBanner').value; // Тут уже Base64
     const bio = document.getElementById('setBio').value.trim();
     const font = document.getElementById('setFont') ? document.getElementById('setFont').value : '';
     
@@ -282,7 +333,7 @@ if (document.getElementById('setNick')) {
       const res = await fetch('/api/profile', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ user_id: currentUser.id, display_name: nick, avatar_url: avatar, banner_url: banner, banner_position: bannerPos, bio: bio, font_family: font }) 
+        body: JSON.stringify({ user_id: currentUser.id, display_name: nick, avatar_url: avatar, banner_url: banner, banner_position: 'center', bio: bio, font_family: font }) 
       });
       if (!res.ok) throw new Error('Save error');
       
