@@ -18,6 +18,7 @@ body {
   color: #000;
   min-height: 100vh;
   padding: 12px;
+  transition: background 0.3s;
 }
 
 /* Окна в стиле Windows 95 */
@@ -83,7 +84,7 @@ body {
   padding: 2px;
 }
 
-/* --- ИСПРАВЛЕННАЯ НАВИГАЦИЯ --- */
+/* Навигация */
 .nav {
   display: flex;
   flex-wrap: wrap;
@@ -92,7 +93,7 @@ body {
   background: #a0a0a0;
   border-top: 1px solid #fff;
   align-items: center;
-  justify-content: center; /* Центрируем элементы */
+  justify-content: center;
 }
 
 .nav__link {
@@ -342,6 +343,21 @@ body {
 }
 
 @keyframes rainbow-anim {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+/* НОВЫЙ ГРАДИЕНТ ДЛЯ МОДЕРАТОРА */
+.moderator-name {
+  font-weight: bold;
+  background: linear-gradient(to right, #ffffff, #ff7f00, #ff0000, #ff7f00, #ffffff);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: mod-anim 4s linear infinite;
+}
+
+@keyframes mod-anim {
   0% { background-position: 0% center; }
   100% { background-position: 200% center; }
 }
