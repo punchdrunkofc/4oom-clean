@@ -101,11 +101,14 @@ export default {
       }
 
       if (url.pathname === '/api/threads' && request.method === 'GET') {
+        // ИСПРАВЛЕНИЕ: Добавлен JOIN с таблицей users, чтобы получить роль автора треда
         const { results } = await env.DB.prepare(`
-          SELECT t.*, 
+          SELECT t.*, u.role AS author_role,
           (SELECT id FROM posts p WHERE p.thread_id = t.id ORDER BY p.created_at ASC LIMIT 1) AS first_post_id,
           (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count
-          FROM threads t ORDER BY t.updated_at DESC LIMIT 100
+          FROM threads t 
+          LEFT JOIN users u ON t.author_name = u.display_name
+          ORDER BY t.updated_at DESC LIMIT 100
         `).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
