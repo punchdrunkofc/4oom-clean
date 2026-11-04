@@ -1,0 +1,8 @@
+name = "4oom-clean"
+main = "_worker.js"
+compatibility_date = "2026-11-04"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "4oom-db"
+database_id = "2dbdb197-286d-4e55-a679-14224d5cd58a"
