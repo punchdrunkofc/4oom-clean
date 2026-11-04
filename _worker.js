@@ -49,15 +49,11 @@ export default {
           login: dbUser.display_name, 
           avatar: dbUser.avatar_url, 
           role: dbUser.role, 
-          font: dbUser.font_family,
-          theme: dbUser.theme || 'dark',
-          bg: dbUser.background || 'stars'
+          font: dbUser.font_family
         });
 
         return new Response(`<!DOCTYPE html><html><body><script>
           localStorage.setItem('4oom_user', JSON.stringify(${userJson}));
-          localStorage.setItem('4oom_theme', '${dbUser.theme || 'dark'}');
-          localStorage.setItem('4oom_bg', '${dbUser.background || 'stars'}');
           location.href = '/';
         </script></body></html>`, { headers: { 'Content-Type': 'text/html' } });
       } catch (e) {
@@ -82,7 +78,7 @@ export default {
         if (!login) return new Response(JSON.stringify({ error: 'No login provided' }), { status: 400, headers: cors });
         
         const user = await env.DB.prepare(`
-          SELECT id, display_name, avatar_url, banner_url, banner_position, bio, role, font_family, theme, background 
+          SELECT id, display_name, avatar_url, banner_url, banner_position, bio, role, font_family, background_url 
           FROM users WHERE display_name = ?
         `).bind(login).first();
         
@@ -104,7 +100,7 @@ export default {
         
         await env.DB.prepare(`
           UPDATE users 
-          SET display_name = ?, avatar_url = ?, banner_url = ?, banner_position = ?, bio = ?, font_family = ?, theme = ?, background = ? 
+          SET display_name = ?, avatar_url = ?, banner_url = ?, banner_position = ?, bio = ?, font_family = ?, background_url = ? 
           WHERE id = ?
         `).bind(
           body.display_name, 
@@ -113,21 +109,20 @@ export default {
           body.banner_position || 'center', 
           body.bio || null, 
           body.font_family || null, 
-          body.theme || 'dark', 
-          body.background || 'stars', 
+          body.background_url || null, 
           body.user_id
         ).run();
         
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ... ОСТАЛЬНОЙ КОД API (sections, threads, posts, delete) ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ ...
-      
+      // РАЗДЕЛЫ
       if (url.pathname === '/api/sections' && request.method === 'GET') {
         const { results } = await env.DB.prepare(`SELECT DISTINCT section_slug FROM threads ORDER BY section_slug ASC`).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
+      // УДАЛЕНИЕ ПОСТА/ТРЕДА
       if (url.pathname === '/api/posts/delete' && request.method === 'POST') {
         const body = await request.json();
         if (!body.post_id || !body.user_role || !body.user_login) {
@@ -155,6 +150,7 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
+      // ТРЕДЫ (получение)
       if (url.pathname === '/api/threads' && request.method === 'GET') {
         const section = url.searchParams.get('section');
         const my = url.searchParams.get('my');
@@ -182,6 +178,7 @@ export default {
         }
       }
 
+      // ТРЕДЫ (создание)
       if (url.pathname === '/api/threads' && request.method === 'POST') {
         const body = await request.json();
         const section_slug = (body.section_slug || 'general').toLowerCase().replace(/\s+/g, '-'); 
@@ -195,6 +192,7 @@ export default {
         return new Response(JSON.stringify({ id: t.id }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
+      // ПОСТЫ (получение)
       if (url.pathname === '/api/posts' && request.method === 'GET') {
         const threadId = url.searchParams.get('thread');
         const thread = await env.DB.prepare(`SELECT * FROM threads WHERE id = ?`).bind(threadId).first();
@@ -208,6 +206,7 @@ export default {
         return new Response(JSON.stringify({ thread, posts: results }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
+      // ПОСТЫ (создание)
       if (url.pathname === '/api/posts' && request.method === 'POST') {
         const body = await request.json();
         await env.DB.prepare(`INSERT INTO posts (thread_id, author_name, body, image_url, music_url) VALUES (?, ?, ?, ?, ?)`).bind(body.thread_id, body.author_name || 'guest', body.body, body.image_url || null, body.music_url || null).run();
