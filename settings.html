@@ -26,7 +26,19 @@
 
       <label>Bio / Description:</label>
       <textarea id="setBio" placeholder="Tell us about yourself..." style="width: 100%; height: 100px; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;"></textarea>
-      
+
+      <label>Nickname Font:</label>
+      <select id="setFont" style="width: 100%; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
+        <option value="">Default (MS Sans Serif)</option>
+        <option value="'Times New Roman', serif">Times New Roman</option>
+        <option value="'Courier New', monospace">Courier New</option>
+        <option value="Impact, sans-serif">Impact</option>
+        <option value="'Comic Sans MS', cursive, sans-serif">Comic Sans MS</option>
+        <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+        <option value="Georgia, serif">Georgia</option>
+        <option value="'Lucida Console', monospace">Lucida Console</option>
+      </select>
+
       <button class="neon-btn" onclick="saveSettings()">Save</button>
       <button class="neon-btn" onclick="location.href='/'">Cancel</button>
     </div>
