@@ -84,19 +84,39 @@ if (document.getElementById('userName')) {
 // --- ЧАТ (WebSocket) ---
 if (document.getElementById('chatMessages')) {
   const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
+  
   if (currentUser) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}`);
     
-    ws.onopen = () => chatMsgs.innerHTML = '';
+    ws.onopen = () => { chatMsgs.innerHTML = ''; };
     
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
+      
+      // Обработка ИСТОРИИ при подключении
+      if (data.type === 'history') {
+        chatMsgs.innerHTML = '';
+        if (data.messages.length === 0) {
+          chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No messages yet.</div>';
+        } else {
+          data.messages.forEach(m => {
+            const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
+            div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="font-weight: bold; color: #000080; text-decoration: none;">${escapeHtml(m.user)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(m.text)}</span>`;
+            chatMsgs.appendChild(div);
+          });
+          chatMsgs.scrollTop = chatMsgs.scrollHeight;
+        }
+      }
+
+      // Обработка НОВЫХ сообщений
       if (data.type === 'chat') {
         const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
         div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="font-weight: bold; color: #000080; text-decoration: none;">${escapeHtml(data.user)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(data.text)}</span>`;
         chatMsgs.appendChild(div); chatMsgs.scrollTop = chatMsgs.scrollHeight;
       }
+      
+      // Обработка ОНЛАЙНА
       if (data.type === 'online') {
         onlineUsers.innerHTML = data.users.length > 0 ? '🟢 Online: ' + data.users.map(u => `<a href="/profile.html?user=${encodeURIComponent(u)}" style="color: inherit;">${escapeHtml(u)}</a>`).join(', ') : '⚫ No one online';
       }
