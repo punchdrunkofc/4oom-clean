@@ -85,7 +85,7 @@ export default {
       return stub.fetch(new Request(url.origin + `/ws?nick=${encodeURIComponent(nick)}&role=${encodeURIComponent(role)}`, request));
     }
 
-    // --- AUTH ---
+    // --- AUTH (GITHUB) ---
     if (url.pathname === '/api/auth/login') {
       const ghUrl = `https://github.com/login/oauth/authorize?client_id=${env.GH_CLIENT_ID}&redirect_uri=${encodeURIComponent(url.origin + '/api/auth/callback')}&scope=read:user`;
       return Response.redirect(ghUrl, 302);
@@ -112,25 +112,53 @@ export default {
       } catch (e) { return new Response('Auth error: ' + e.message, { status: 500 }); }
     }
 
-    // --- API ---
+    // --- CORS ---
     const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
     
     try {
       if (!env.DB) return new Response(JSON.stringify({ error: 'No DB bound' }), { status: 500, headers: cors });
 
-      // ПОЛЬЗОВАТЕЛИ
+      // --- ЛОГИН (БЕЗ GITHUB) ---
+      if (url.pathname === '/api/login' && request.method === 'POST') {
+        const b = await request.json();
+        const user = await env.DB.prepare(`SELECT * FROM users WHERE display_name = ?`).bind(b.login).first();
+        if (!user) return new Response(JSON.stringify({ error: 'User not found' }), { status: 401, headers: cors });
+        return new Response(JSON.stringify({ user: { id: user.id, login: user.display_name, avatar: user.avatar_url, role: user.role, font: user.font_family } }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+
+      // --- ПОЛЬЗОВАТЕЛИ ---
       if (url.pathname === '/api/users' && request.method === 'GET') {
         const { results } = await env.DB.prepare(`SELECT id, display_name, avatar_url, role FROM users ORDER BY display_name ASC`).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ДРУЗЬЯ
+      if (url.pathname === '/api/user' && request.method === 'GET') {
+        const login = url.searchParams.get('login');
+        let user = await env.DB.prepare(`SELECT * FROM users WHERE display_name = ?`).bind(login).first();
+        if (!user) user = await env.DB.prepare(`SELECT * FROM users WHERE github_login = ?`).bind(login).first();
+        if (!user) return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: cors });
+        const { results: threads } = await env.DB.prepare(`SELECT t.*, (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count FROM threads t WHERE t.author_name = ? ORDER BY t.updated_at DESC`).bind(user.display_name).all();
+        return new Response(JSON.stringify({ user, threads }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+
+      // --- ОБНОВЛЕНИЕ ПРОФИЛЯ ---
+      if (url.pathname === '/api/profile' && request.method === 'POST') {
+        const b = await request.json();
+        if (!b.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
+        await env.DB.prepare(`UPDATE users SET display_name = ?, bio = ?, font_family = ?, avatar_url = ?, banner_url = ?, background_url = ? WHERE id = ?`)
+          .bind(b.display_name, b.bio || null, b.font_family || null, b.avatar_url || null, b.banner_url || null, b.background_url || null, b.user_id).run();
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+
+      // --- ДРУЗЬЯ ---
       if (url.pathname === '/api/friends/all' && request.method === 'GET') {
         const userId = url.searchParams.get('user_id');
         if (!userId) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
         const { results } = await env.DB.prepare(`SELECT friend_id FROM friends WHERE user_id = ? UNION SELECT user_id FROM friends WHERE friend_id = ?`).bind(userId, userId).all();
-        return new Response(JSON.stringify(results.map(r => r.friend_id || r.user_id)), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        // Приводим к единому массиву ID
+        const ids = results.map(r => r.friend_id || r.user_id);
+        return new Response(JSON.stringify(ids), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
       if (url.pathname === '/api/friends/request' && request.method === 'POST') {
         const body = await request.json();
@@ -155,11 +183,18 @@ export default {
       if (url.pathname === '/api/friends/list' && request.method === 'GET') {
         const userId = url.searchParams.get('user_id');
         if (!userId) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
+        // Получаем друзей, где связь подтверждена (в любом направлении, но у нас направленная модель)
         const { results } = await env.DB.prepare(`SELECT u.id, u.display_name, u.avatar_url, u.role FROM friends f JOIN users u ON f.friend_id = u.id WHERE f.user_id = ? AND f.status = 'accepted'`).bind(userId).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
+      if (url.pathname === '/api/friends/remove' && request.method === 'POST') {
+        const body = await request.json();
+        if (!body.user_id || !body.friend_id) return new Response(JSON.stringify({ error: 'Missing data' }), { status: 400, headers: cors });
+        await env.DB.prepare(`DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)`).bind(body.user_id, body.friend_id, body.friend_id, body.user_id).run();
+        return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
 
-      // ЛС
+      // --- ЛС (СООБЩЕНИЯ) ---
       if (url.pathname === '/api/messages' && request.method === 'GET') {
         const senderId = url.searchParams.get('sender_id');
         const receiverId = url.searchParams.get('receiver_id');
@@ -174,28 +209,13 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ПРОФИЛЬ
-      if (url.pathname === '/api/user' && request.method === 'GET') {
-        const login = url.searchParams.get('login');
-        let user = await env.DB.prepare(`SELECT * FROM users WHERE display_name = ?`).bind(login).first();
-        if (!user) user = await env.DB.prepare(`SELECT * FROM users WHERE github_login = ?`).bind(login).first();
-        if (!user) return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: cors });
-        const { results: threads } = await env.DB.prepare(`SELECT t.*, (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count FROM threads t WHERE t.author_name = ? ORDER BY t.updated_at DESC`).bind(user.display_name).all();
-        return new Response(JSON.stringify({ user, threads }), { headers: { ...cors, 'Content-Type': 'application/json' } });
-      }
-      if (url.pathname === '/api/profile' && request.method === 'POST') {
-        const b = await request.json();
-        await env.DB.prepare(`UPDATE users SET display_name = ?, avatar_url = ?, bio = ?, font_family = ?, background_url = ? WHERE id = ?`).bind(b.display_name, b.avatar_url, b.bio||null, b.font_family||null, b.background_url||null, b.user_id).run();
-        return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
-      }
-
-      // РАЗДЕЛЫ
+      // --- РАЗДЕЛЫ ---
       if (url.pathname === '/api/sections' && request.method === 'GET') {
         const { results } = await env.DB.prepare(`SELECT DISTINCT section_slug FROM threads ORDER BY section_slug ASC`).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // УДАЛЕНИЕ
+      // --- УДАЛЕНИЕ ПОСТОВ / ТРЕДОВ ---
       if (url.pathname === '/api/posts/delete' && request.method === 'POST') {
         const b = await request.json();
         const post = await env.DB.prepare(`SELECT * FROM posts WHERE id = ?`).bind(b.post_id).first();
@@ -207,14 +227,15 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ТРЕДЫ
+      // --- ТРЕДЫ ---
       if (url.pathname === '/api/threads' && request.method === 'GET') {
         const section = url.searchParams.get('section');
         const my = url.searchParams.get('my');
         let q = `SELECT t.*, u.role AS author_role, u.font_family AS author_font, (SELECT id FROM posts p WHERE p.thread_id = t.id ORDER BY p.created_at ASC LIMIT 1) AS first_post_id, (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count FROM threads t LEFT JOIN users u ON t.author_name = u.display_name`;
-        if (section) { q += ` WHERE t.section_slug = ? GROUP BY t.id HAVING reply_count > 0 ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).bind(section).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
-        else if (my) { q += ` WHERE t.author_name = ? GROUP BY t.id HAVING reply_count > 0 ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).bind(my).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
-        else { q += ` GROUP BY t.id HAVING reply_count > 0 ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
+        // Убрали GROUP BY HAVING reply_count > 0, чтобы показывать новые треды без ответов
+        if (section) { q += ` WHERE t.section_slug = ? ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).bind(section).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
+        else if (my) { q += ` WHERE t.author_name = ? ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).bind(my).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
+        else { q += ` ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
       }
       if (url.pathname === '/api/threads' && request.method === 'POST') {
         const b = await request.json();
@@ -224,7 +245,7 @@ export default {
         return new Response(JSON.stringify({ id: t.id }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ПОСТЫ
+      // --- ПОСТЫ ---
       if (url.pathname === '/api/posts' && request.method === 'GET') {
         const threadId = url.searchParams.get('thread');
         const thread = await env.DB.prepare(`SELECT * FROM threads WHERE id = ?`).bind(threadId).first();
@@ -238,7 +259,11 @@ export default {
         await env.DB.prepare(`UPDATE threads SET updated_at = unixepoch() WHERE id = ?`).bind(b.thread_id).run();
         return new Response(JSON.stringify({ ok: true }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
       }
-    } catch (e) { return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }); }
+
+    } catch (e) { 
+      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }); 
+    }
+    
     return new Response('Not found', { status: 404 });
   },
 };
