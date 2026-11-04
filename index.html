@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  
+<!-- Контейнер для видео-фона -->
 <video id="bgVideo" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none; filter: sepia(1) hue-rotate(220deg) saturate(3) brightness(0.6);"></video>
 
 <header class="header window">
@@ -71,6 +71,14 @@
         <button type="submit" class="neon-btn" style="margin: 0;">Send</button>
       </form>
       <div id="onlineUsers" style="font-size: 10px; color: #444; margin-top: 6px;">⚫ Loading...</div>
+    </div>
+  </section>
+
+  <!-- БЛОК ПОЛЬЗОВАТЕЛЕЙ -->
+  <section class="window" style="margin-top: 12px;">
+    <div class="window__bar"><span>👥 Registered Users</span></div>
+    <div id="usersList" style="padding: 8px; max-height: 300px; overflow-y: auto; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px;">
+      <div style="text-align: center; color: #888;">Loading users...</div>
     </div>
   </section>
 
