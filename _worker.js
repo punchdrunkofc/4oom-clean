@@ -62,7 +62,7 @@ export default {
       try {
         if (!env.DB) return new Response(JSON.stringify({ error: 'No database. Bind D1 in settings!' }), { status: 500, headers: cors });
 
-        // Профиль (сохранение)
+        // Профиль
         if (url.pathname === '/api/profile' && request.method === 'POST') {
           const body = await request.json();
           if (!body.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
@@ -70,7 +70,7 @@ export default {
           return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Удаление поста
+        // Удаление треда или поста
         if (url.pathname === '/api/posts/delete' && request.method === 'POST') {
           const body = await request.json();
           if (!body.post_id || !body.user_role || !body.user_login) {
@@ -80,7 +80,6 @@ export default {
           const post = await env.DB.prepare(`SELECT * FROM posts WHERE id = ?`).bind(body.post_id).first();
           if (!post) return new Response(JSON.stringify({ error: 'Post not found' }), { status: 404, headers: cors });
 
-          // Проверка прав
           const isAdmin = ['creator', 'moderator', 'editor'].includes(body.user_role);
           const isOwner = post.author_name === body.user_login;
 
@@ -88,17 +87,27 @@ export default {
             return new Response(JSON.stringify({ error: 'No permission' }), { status: 403, headers: cors });
           }
 
-          await env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(body.post_id).run();
+          // Проверяем, является ли этот пост первым в треде
+          const firstPost = await env.DB.prepare(`SELECT id FROM posts WHERE thread_id = ? ORDER BY created_at ASC LIMIT 1`).bind(post.thread_id).first();
+          
+          if (firstPost && firstPost.id === post.id) {
+            // Если это первый пост, удаляем весь тред (посты удалятся каскадно благодаря FOREIGN KEY)
+            await env.DB.prepare(`DELETE FROM threads WHERE id = ?`).bind(post.thread_id).run();
+          } else {
+            // Иначе удаляем только пост
+            await env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(body.post_id).run();
+          }
+
           return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
         // Треды (получение)
         if (url.pathname === '/api/threads' && request.method === 'GET') {
           const { results } = await env.DB.prepare(`
-            SELECT t.*, u.avatar_url AS author_avatar, u.role AS author_role,
+            SELECT t.*, 
+            (SELECT id FROM posts p WHERE p.thread_id = t.id ORDER BY p.created_at ASC LIMIT 1) AS first_post_id,
             (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count
-            FROM threads t LEFT JOIN users u ON t.author_name = u.display_name
-            ORDER BY t.updated_at DESC LIMIT 100
+            FROM threads t ORDER BY t.updated_at DESC LIMIT 100
           `).all();
           return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
@@ -119,6 +128,8 @@ export default {
         if (url.pathname === '/api/posts' && request.method === 'GET') {
           const threadId = url.searchParams.get('thread');
           const thread = await env.DB.prepare(`SELECT * FROM threads WHERE id = ?`).bind(threadId).first();
+          if (!thread) return new Response(JSON.stringify({ error: 'Thread not found' }), { status: 404, headers: cors });
+          
           const { results } = await env.DB.prepare(`
             SELECT p.*, u.avatar_url AS author_avatar, u.role AS author_role
             FROM posts p LEFT JOIN users u ON p.author_name = u.display_name
@@ -157,11 +168,12 @@ export default {
       .layout { display: grid; grid-template-columns: 1fr 280px; gap: 12px; max-width: 1000px; margin: 0 auto; }
       .layout--single { grid-template-columns: 1fr; }
       .thread-list { list-style: none; padding: 6px; }
-      .thread a { display: block; padding: 6px 8px; color: #000; text-decoration: none; border-bottom: 1px dotted #808080; }
-      .thread a:hover { background: #ffffcc; }
-      .thread__id { color: #000080; font-weight: bold; margin-right: 6px; }
-      .thread__title { display: block; }
+      .thread { border-bottom: 1px dotted #808080; padding: 6px 8px; display: flex; justify-content: space-between; align-items: center; }
+      .thread a { text-decoration: none; color: #000; flex-grow: 1; }
+      .thread a:hover { color: #000080; }
+      .thread__title { display: block; font-weight: bold; }
       .thread__meta { font-size: 11px; color: #444; }
+      
       .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 6px; border-bottom: 1px solid #808080; }
       .neon-btn { display: inline-block; margin: 4px; padding: 6px 14px; background: var(--win-bg); color: #000; border: 2px solid; border-color: #fff #808080 #808080 #fff; font-family: var(--font-pixel); font-size: 12px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
       .neon-btn:hover { background: #d0d0d0; }
@@ -183,11 +195,40 @@ export default {
       .settings-form { padding: 12px; }
       .settings-form label { display: block; margin-bottom: 4px; font-weight: bold; }
       .settings-form input { width: 100%; padding: 4px; margin-bottom: 12px; border: 2px solid; border-color: #808080 #fff #fff #808080; }
+      
       .role-badge { display: inline-block; padding: 2px 6px; font-size: 10px; font-weight: bold; color: #fff; border-radius: 2px; margin-left: 4px; }
-      .role-creator { background: #800000; }
       .role-moderator { background: #006400; }
       .role-editor { background: #000080; }
-      .delete-btn { background: #ffcccc; border: 1px solid #800000; color: #800000; font-size: 10px; padding: 1px 4px; cursor: pointer; margin-left: 8px; }
+
+      .creator-name {
+        font-weight: bold;
+        background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
+        background-size: 400% 400%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: rainbow-anim 3s linear infinite;
+      }
+      @keyframes rainbow-anim {
+        0% { background-position: 0% 50%; }
+        100% { background-position: 400% 50%; }
+      }
+
+      .role-creator-glitter {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: #ff69b4;
+        border: 2px dashed #fff;
+        box-shadow: 0 0 5px #ff69b4, 0 0 10px #ff69b4;
+        animation: glitter-pulse 1.5s infinite alternate;
+      }
+      @keyframes glitter-pulse {
+        0% { box-shadow: 0 0 5px #ff69b4, 0 0 10px #ff69b4; border-color: #fff; }
+        100% { box-shadow: 0 0 15px #ff69b4, 0 0 20px #ffb6c1; border-color: #ffe4e1; }
+      }
+
+      .delete-btn { background: #ffcccc; border: 1px solid #800000; color: #800000; font-size: 10px; padding: 1px 4px; cursor: pointer; margin-left: 8px; white-space: nowrap; }
+      .delete-btn:hover { background: #ff0000; color: #fff; }
     `;
 
     // Home page
@@ -234,19 +275,45 @@ export default {
           
           function getRoleBadge(role) {
             if (!role || role === 'user') return '';
-            const labels = { creator: 'CREATOR', moderator: 'MOD', editor: 'EDITOR' };
+            if (role === 'creator') return \`<span class="role-badge role-creator-glitter">CREATOR</span>\`;
+            const labels = { moderator: 'MOD', editor: 'EDITOR' };
             return \`<span class="role-badge role-\${role}">\${labels[role]}</span>\`;
+          }
+
+          function formatName(name, role) {
+            if (role === 'creator') return \`<span class="creator-name">\${escapeHtml(name)}</span>\`;
+            return escapeHtml(name);
           }
 
           if (currentUser) {
             document.getElementById('profileName').textContent = currentUser.login;
             document.getElementById('profileBox').innerHTML = \`
               <img src="\${currentUser.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect width=%2280%22 height=%2280%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" class="avatar" alt="avatar">
-              <p class="profile__name">\${escapeHtml(currentUser.login)} \${getRoleBadge(currentUser.role)}</p>
+              <p class="profile__name">\${formatName(currentUser.login, currentUser.role)} \${getRoleBadge(currentUser.role)}</p>
               <p class="profile__status">online · github user</p>
               <button class="neon-btn" onclick="location.href='/settings'">settings</button>
               <button class="neon-btn" onclick="localStorage.clear();location.reload()">logout</button>
             \`;
+          }
+
+          async function deleteThread(firstPostId) {
+            if (!confirm('Delete this thread completely?')) return;
+            try {
+              const res = await fetch('/api/posts/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  post_id: firstPostId, 
+                  user_role: currentUser ? currentUser.role : 'guest', 
+                  user_login: currentUser ? currentUser.login : 'guest' 
+                })
+              });
+              if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error);
+              }
+              loadThreads();
+            } catch(e) { alert('Error: ' + e.message); }
           }
 
           async function loadThreads() {
@@ -255,8 +322,22 @@ export default {
               const r = await fetch('/api/threads');
               const threads = await r.json();
               if (!threads || threads.length === 0) { list.innerHTML = '<li class="thread"><a href="#"><span class="thread__title">Nothing here yet — create the first thread!</span></a></li>'; return; }
+              
               list.innerHTML = threads.map(function(t) {
-                return '<li class="thread"><a href="/thread?id=' + t.id + '"><span class="thread__id">#' + String(t.id).padStart(3, '0') + '</span><span class="thread__title">' + escapeHtml(t.title) + ' ' + getRoleBadge(t.author_role) + '</span><span class="thread__meta">' + t.reply_count + ' replies</span></a></li>';
+                // Проверка прав на удаление треда (создатель, модер, редактор или автор)
+                const canDelete = currentUser && (
+                  ['creator', 'moderator', 'editor'].includes(currentUser.role) || 
+                  t.author_name === currentUser.login
+                );
+                const deleteBtn = canDelete ? \`<button class="delete-btn" onclick="event.preventDefault(); deleteThread(\${t.first_post_id})">delete</button>\` : '';
+                
+                return \`<li class="thread">
+                  <a href="/thread?id=\${t.id}">
+                    <span class="thread__title">\${escapeHtml(t.title)}</span>
+                    <span class="thread__meta">by \${formatName(t.author_name, 'user')} · \${t.reply_count} replies</span>
+                  </a>
+                  \${deleteBtn}
+                </li>\`;
               }).join('');
             } catch(e) { list.innerHTML = '<li>Load error</li>'; }
           }
@@ -371,8 +452,14 @@ export default {
           
           function getRoleBadge(role) {
             if (!role || role === 'user') return '';
-            const labels = { creator: 'CREATOR', moderator: 'MOD', editor: 'EDITOR' };
+            if (role === 'creator') return \`<span class="role-badge role-creator-glitter">CREATOR</span>\`;
+            const labels = { moderator: 'MOD', editor: 'EDITOR' };
             return \`<span class="role-badge role-\${role}">\${labels[role]}</span>\`;
+          }
+
+          function formatName(name, role) {
+            if (role === 'creator') return \`<span class="creator-name">\${escapeHtml(name)}</span>\`;
+            return escapeHtml(name);
           }
 
           async function deletePost(postId) {
@@ -399,8 +486,11 @@ export default {
             if (!threadId) { location.href = '/'; return; }
             try {
               const r = await fetch('/api/posts?thread=' + threadId);
+              if (!r.ok) { 
+                if (r.status === 404) { alert('This thread has been deleted.'); location.href='/'; return; }
+              }
               const data = await r.json();
-              document.querySelector('.window__bar span').textContent = '📄 #' + threadId + ' — ' + data.thread.title;
+              document.querySelector('.window__bar span').textContent = '📄 ' + data.thread.title;
               
               document.getElementById('postList').innerHTML = data.posts.map(function(p) {
                 let avatarHtml = '';
@@ -410,7 +500,6 @@ export default {
                   avatarHtml = '<div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block; vertical-align: middle;"></div>';
                 }
                 
-                // Проверка прав на удаление
                 const canDelete = currentUser && (
                   ['creator', 'moderator', 'editor'].includes(currentUser.role) || 
                   p.author_name === currentUser.login
@@ -419,7 +508,7 @@ export default {
                 
                 let imgHtml = p.image_url ? '<img src="' + p.image_url + '" class="post__img" alt="image" onerror="this.style.display=\\'none\\'">' : '';
                 
-                return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + escapeHtml(p.author_name) + getRoleBadge(p.author_role) + deleteBtn + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + imgHtml + '</div></article>';
+                return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + formatName(p.author_name, p.author_role) + getRoleBadge(p.author_role) + deleteBtn + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + imgHtml + '</div></article>';
               }).join('');
             } catch(e) { document.getElementById('postList').innerHTML = 'Error loading thread'; }
           }
