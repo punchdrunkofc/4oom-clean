@@ -31,9 +31,6 @@ export default {
         });
         const user = await userRes.json();
 
-        // Сохраняем и ник, и ссылку на аватар
-        const userJson = JSON.stringify({ login: user.login, avatar_url: user.avatar_url });
-
         return new Response(`<!DOCTYPE html><html><body><script>
           localStorage.setItem('4oom_user', '${user.login.replace(/'/g, "\\'")}');
           localStorage.setItem('4oom_avatar', '${user.avatar_url}');
@@ -128,17 +125,20 @@ export default {
       .post { padding: 8px 12px; border-bottom: 1px solid #a0a0a0; }
       .post__head { display: flex; justify-content: space-between; font-size: 11px; color: #444; margin-bottom: 4px; }
       .post__author { color: var(--win-title); font-weight: bold; display: flex; align-items: center; gap: 6px; }
-      .post__avatar { width: 20px; height: 20px; border: 1px solid #808080; object-fit: cover; }
-      .post__body { font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.4; }
+      .post__avatar { width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover; }
+      .post__body { font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.4; margin-top: 4px; }
       .reply-form { padding: 8px 12px; }
       .reply-form__textarea { width: 100%; font-family: 'Times New Roman', serif; font-size: 13px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080; background: #fff; }
+      .settings-form { padding: 12px; }
+      .settings-form label { display: block; margin-bottom: 4px; font-weight: bold; }
+      .settings-form input { width: 100%; padding: 4px; margin-bottom: 12px; border: 2px solid; border-color: #808080 #fff #fff #808080; }
     `;
 
     // Главная страница
     if (url.pathname === '/' || url.pathname === '/index.html') {
       return new Response(`<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>4OOM</title><style>${commonCSS}</style></head><body>
         <header class="header window">
-          <div class="window__bar"><span>▣ 4OOM.exe</span><div class="window__buttons"><button class="win-btn" onclick="alert('Смена темы будет позже!')">◐</button><button class="win-btn" onclick="alert('Настройки в разработке')">⚙</button></div></div>
+          <div class="window__bar"><span>▣ 4OOM.exe</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/settings'">⚙</button></div></div>
           <div class="header__body"><div class="header__center" style="text-align: center; flex: 1;"><h1 class="logo">4OOM</h1><p class="tagline">the room that never closed</p><marquee class="marquee" scrollamount="4">★ добро пожаловать в 4OOM ★</marquee></div></div>
           <nav class="nav"><a href="/" class="nav__link" style="font-weight: bold;">главная</a><a href="?section=general" class="nav__link">general</a></nav>
         </header>
@@ -175,12 +175,13 @@ export default {
           const currentUser = localStorage.getItem('4oom_user');
           const currentAvatar = localStorage.getItem('4oom_avatar');
           
-          if (currentUser && currentAvatar) {
+          if (currentUser) {
             document.getElementById('profileName').textContent = currentUser;
             document.getElementById('profileBox').innerHTML = \`
-              <img src="\${currentAvatar}" class="avatar" alt="avatar">
+              <img src="\${currentAvatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect width=%2280%22 height=%2280%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" class="avatar" alt="avatar">
               <p class="profile__name">\${escapeHtml(currentUser)}</p>
               <p class="profile__status">online · github user</p>
+              <button class="neon-btn" onclick="location.href='/settings'">настройки</button>
               <button class="neon-btn" onclick="localStorage.clear();location.reload()">выйти</button>
             \`;
           }
@@ -217,11 +218,54 @@ export default {
       </body></html>`, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
 
+    // Страница настроек
+    if (url.pathname === '/settings') {
+      return new Response(`<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>4OOM — Настройки</title><style>${commonCSS}</style></head><body>
+        <header class="header window">
+          <div class="window__bar"><span>▣ 4OOM.exe — Настройки</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/'">×</button></div></div>
+          <nav class="nav"><a href="/" class="nav__link">← назад на главную</a></nav>
+        </header>
+        <main class="layout layout--single">
+          <section class="window">
+            <div class="window__bar"><span>🎨 Редактор аккаунта</span></div>
+            <div class="settings-form">
+              <label>Ваш никнейм:</label>
+              <input type="text" id="setNick" placeholder="Введите ник">
+              
+              <label>Ссылка на аватарку (URL):</label>
+              <input type="text" id="setAvatar" placeholder="https://example.com/avatar.gif">
+              
+              <button class="neon-btn" onclick="saveSettings()">Сохранить</button>
+              <button class="neon-btn" onclick="location.href='/'">Отмена</button>
+            </div>
+          </section>
+        </main>
+        <script>
+          // Загружаем текущие настройки
+          document.getElementById('setNick').value = localStorage.getItem('4oom_user') || '';
+          document.getElementById('setAvatar').value = localStorage.getItem('4oom_avatar') || '';
+
+          function saveSettings() {
+            const nick = document.getElementById('setNick').value.trim();
+            const avatar = document.getElementById('setAvatar').value.trim();
+            
+            if (!nick) return alert('Никнейм не может быть пустым');
+            
+            localStorage.setItem('4oom_user', nick);
+            localStorage.setItem('4oom_avatar', avatar);
+            
+            alert('Настройки сохранены!');
+            location.href = '/';
+          }
+        </script>
+      </body></html>`, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    }
+
     // Страница треда
     if (url.pathname === '/thread') {
       return new Response(`<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>4OOM — Тред</title><style>${commonCSS}</style></head><body>
         <header class="header window">
-          <div class="window__bar"><span>▣ 4OOM.exe</span><div class="window__buttons"><button class="win-btn">◐</button><button class="win-btn">⚙</button></div></div>
+          <div class="window__bar"><span>▣ 4OOM.exe</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/settings'">⚙</button></div></div>
           <nav class="nav"><a href="/" class="nav__link">← назад к тредам</a></nav>
         </header>
         <main class="layout layout--single">
@@ -249,14 +293,12 @@ export default {
               const data = await r.json();
               document.querySelector('.window__bar span').textContent = '📄 #' + threadId + ' — ' + data.thread.title;
               
-              // Если это наш пост, показываем аватарку (мы будем считать, что если имя совпадает с текущим юзером, то это он)
               document.getElementById('postList').innerHTML = data.posts.map(function(p) {
                 let avatarHtml = '';
                 if (p.author_name === currentUser && currentAvatar) {
                   avatarHtml = '<img src="' + currentAvatar + '" class="post__avatar" alt="avatar">';
                 } else {
-                  // Заглушка для остальных пользователей (показываем квадратик)
-                  avatarHtml = '<div style="width:20px; height:20px; background:#ccc; border: 1px solid #808080; display:inline-block; vertical-align: middle; margin-right: 6px;"></div>';
+                  avatarHtml = '<div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block; vertical-align: middle;"></div>';
                 }
                 return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + escapeHtml(p.author_name) + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + '</div></article>';
               }).join('');
