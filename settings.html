@@ -11,7 +11,6 @@
   .preview-container { margin-top: 12px; border: 2px solid var(--win-dark); background: var(--win-bg); }
   .preview-banner { width: 100%; height: 100px; background: #808080; object-fit: cover; display: block; border-bottom: 2px solid var(--win-dark); }
   .preview-bio { padding: 8px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px; font-family: 'Times New Roman', serif; min-height: 40px; font-size: 12px; }
-  
   #avatarCropperContainer, #bannerCropperContainer { width: 100%; height: 300px; background: #000; margin-bottom: 12px; display: none; }
   .crop-img { max-width: 100%; display: block; }
 </style>
@@ -30,23 +29,19 @@
       
       <label>Upload Avatar (Square):</label>
       <input type="file" id="avatarFile" accept="image/*" style="margin-bottom: 8px;">
-      
-      <!-- Контейнер для аватарки -->
       <div id="avatarCropperContainer">
         <img id="avatarCropperImage" class="crop-img" src="" alt="Avatar to crop">
       </div>
       <button type="button" id="saveAvatarBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyAvatarCrop()">Apply Avatar Crop</button>
-      <input type="hidden" id="setAvatar" value=""> <!-- Скрытое поле для Base64 -->
+      <input type="hidden" id="setAvatar" value="">
 
       <label>Upload Profile Banner (Wide):</label>
       <input type="file" id="bannerFile" accept="image/*" style="margin-bottom: 8px;">
-      
-      <!-- Контейнер для баннера -->
       <div id="bannerCropperContainer">
         <img id="bannerCropperImage" class="crop-img" src="" alt="Banner to crop">
       </div>
       <button type="button" id="saveBannerBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyBannerCrop()">Apply Banner Crop</button>
-      <input type="hidden" id="setBanner" value=""> <!-- Скрытое поле для Base64 -->
+      <input type="hidden" id="setBanner" value="">
 
       <label>Bio / Description:</label>
       <textarea id="setBio" placeholder="Tell us about yourself..." style="width: 100%; height: 100px; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;"></textarea>
@@ -63,12 +58,26 @@
         <option value="'Lucida Console', monospace">Lucida Console</option>
       </select>
 
+      <!-- ВЫБОР ТЕМЫ И ФОНА -->
+      <label>Theme:</label>
+      <select id="setTheme" style="width: 100%; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+      </select>
+
+      <label>Background:</label>
+      <select id="setBg" style="width: 100%; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
+        <option value="stars">Stars</option>
+        <option value="grid">Grid</option>
+        <option value="velvet">Velvet</option>
+        <option value="fog">Fog</option>
+      </select>
+
       <button class="neon-btn" onclick="saveSettings()">Save</button>
       <button class="neon-btn" onclick="location.href='/'">Cancel</button>
     </div>
   </section>
 
-  <!-- БЛОК ЖИВОГО ПРЕДПРОСМОТРА -->
   <section class="window">
     <div class="window__bar"><span>👤 Live Profile Preview</span></div>
     <div class="preview-container">
@@ -83,7 +92,6 @@
       <div id="previewBio" class="preview-bio"></div>
     </div>
   </section>
-
 </main>
 <script src="/script.js"></script>
 </body>
