@@ -386,3 +386,40 @@ body {
   background: #000080;
   color: #fff;
 }
+/* --- ФОНЫ --- */
+body { transition: background 0.3s; }
+
+/* Тёмная тема (по умолчанию) */
+body.theme-dark {
+  background-color: #000;
+  color: #000;
+}
+
+/* Светлая тема */
+body.theme-light {
+  background-color: #e0e0e0;
+}
+
+/* Фон: Звезды */
+body.bg-stars {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23000'/%3E%3Ccircle cx='10' cy='10' r='1' fill='%23fff'/%3E%3Ccircle cx='50' cy='50' r='1.5' fill='%23fff'/%3E%3Ccircle cx='80' cy='20' r='1' fill='%23fff'/%3E%3Ccircle cx='30' cy='80' r='1' fill='%23fff'/%3E%3Ccircle cx='90' cy='90' r='1.5' fill='%23fff'/%3E%3C/svg%3E");
+}
+
+/* Фон: Клетка (как в тетради) */
+body.bg-grid {
+  background-image: linear-gradient(#ccc 1px, transparent 1px), linear-gradient(90deg, #ccc 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+body.theme-light.bg-grid {
+  background-image: linear-gradient(#aaa 1px, transparent 1px), linear-gradient(90deg, #aaa 1px, transparent 1px);
+}
+
+/* Фон: Бархат / Тёмно-красный градиент */
+body.bg-velvet {
+  background-image: radial-gradient(circle, #4a0000 0%, #000 100%);
+}
+
+/* Фон: Туман / Серый */
+body.bg-fog {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23333'/%3E%3Ccircle cx='20' cy='20' r='20' fill='%23555' opacity='0.5'/%3E%3Ccircle cx='80' cy='80' r='30' fill='%23444' opacity='0.5'/%3E%3C/svg%3E");
+}
