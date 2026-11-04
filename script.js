@@ -145,13 +145,17 @@ if (document.getElementById('postList')) {
     e.preventDefault();
     const body = document.getElementById('replyBody').value;
     const image_url = document.getElementById('replyImage').value;
-    const music_url = document.getElementById('replyMusic').value;
+    const music_url = document.getElementById('replyMusic').value; // Читаем поле музыки
     if (!body) return;
     try {
-      await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body, image_url, music_url, author_name: currentUser ? currentUser.login : 'guest' }) });
+      const res = await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body, image_url, music_url, author_name: currentUser ? currentUser.login : 'guest' }) });
+      if (!res.ok) {
+         const err = await res.json();
+         throw new Error(err.error || 'Server error');
+      }
       document.getElementById('replyBody').value = ''; document.getElementById('replyImage').value = ''; document.getElementById('replyMusic').value = '';
       loadPosts();
-    } catch(e) { alert('Error sending'); }
+    } catch(e) { alert('Error sending: ' + e.message); }
   });
   loadPosts();
 }
