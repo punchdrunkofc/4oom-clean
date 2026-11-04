@@ -66,17 +66,37 @@ export default {
     try {
       if (!env.DB) return new Response(JSON.stringify({ error: 'No database. Bind D1 in settings!' }), { status: 500, headers: cors });
 
-      // ПОЛУЧЕНИЕ СПИСКА ВСЕХ РАЗДЕЛОВ
-      if (url.pathname === '/api/sections' && request.method === 'GET') {
-        const { results } = await env.DB.prepare(`SELECT DISTINCT section_slug FROM threads ORDER BY section_slug ASC`).all();
-        return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      // ПОЛУЧЕНИЕ ПРОФИЛЯ ПОЛЬЗОВАТЕЛЯ
+      if (url.pathname === '/api/user' && request.method === 'GET') {
+        const login = url.searchParams.get('login');
+        if (!login) return new Response(JSON.stringify({ error: 'No login provided' }), { status: 400, headers: cors });
+        
+        const user = await env.DB.prepare(`SELECT id, display_name, avatar_url, banner_url, bio, role FROM users WHERE display_name = ?`).bind(login).first();
+        if (!user) return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: cors });
+
+        const { results: threads } = await env.DB.prepare(`
+          SELECT t.*, 
+          (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count
+          FROM threads t WHERE t.author_name = ? ORDER BY t.updated_at DESC
+        `).bind(login).all();
+
+        return new Response(JSON.stringify({ user, threads }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
+      // ОБНОВЛЕНИЕ ПРОФИЛЯ (настройки)
       if (url.pathname === '/api/profile' && request.method === 'POST') {
         const body = await request.json();
         if (!body.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
-        await env.DB.prepare(`UPDATE users SET display_name = ?, avatar_url = ? WHERE id = ?`).bind(body.display_name, body.avatar_url, body.user_id).run();
+        await env.DB.prepare(`UPDATE users SET display_name = ?, avatar_url = ?, banner_url = ?, bio = ? WHERE id = ?`)
+          .bind(body.display_name, body.avatar_url, body.banner_url || null, body.bio || null, body.user_id).run();
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+
+      // ... остальной код API (sections, threads, posts, delete) ...
+      
+      if (url.pathname === '/api/sections' && request.method === 'GET') {
+        const { results } = await env.DB.prepare(`SELECT DISTINCT section_slug FROM threads ORDER BY section_slug ASC`).all();
+        return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
       if (url.pathname === '/api/posts/delete' && request.method === 'POST') {
@@ -106,7 +126,6 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // Треды
       if (url.pathname === '/api/threads' && request.method === 'GET') {
         const section = url.searchParams.get('section');
         const my = url.searchParams.get('my');
@@ -136,7 +155,6 @@ export default {
 
       if (url.pathname === '/api/threads' && request.method === 'POST') {
         const body = await request.json();
-        // Приводим раздел к нижнему регистру и убираем пробелы
         const section_slug = (body.section_slug || 'general').toLowerCase().replace(/\s+/g, '-'); 
         
         const t = await env.DB.prepare(
