@@ -1,3 +1,4 @@
+import { DurableObject } from 'cloudflare:workers';
 export class ChatRoom extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
