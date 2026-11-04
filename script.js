@@ -602,7 +602,7 @@ if (document.getElementById('setNick')) {
           b.style.display = 'inline-block'; 
           
           // 2. Даем браузеру 50мс на пересчет размеров
-          console.log("пенис");
+          console.warn("пенис");
           setTimeout(() => {
             if (window['crop' + fileId]) {
               window['crop' + fileId].destroy(); 
