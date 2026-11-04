@@ -47,7 +47,6 @@ function formatName(name, role, font) {
   return `<span style="${s}">${escapeHtml(name)}</span>`;
 }
 
-
 function applyCustomBg(url) {
   const video = document.getElementById('bgVideo');
   if (!url) {
@@ -70,7 +69,6 @@ function applyCustomBg(url) {
   }
 }
 
-
 function resetVideoBg() {
   const video = document.getElementById('bgVideo');
   if (video) { video.pause(); video.style.display = 'none'; video.src = ''; }
@@ -78,7 +76,7 @@ function resetVideoBg() {
   document.body.style.backgroundColor = '#000';
 }
 
-
+// --- ПРОФИЛЬ ---
 if (document.getElementById('userName')) {
   const login = urlParams.get('user');
   if (!login) location.href = '/';
@@ -89,11 +87,9 @@ if (document.getElementById('userName')) {
       document.getElementById('userName').innerHTML = formatName(user.display_name, user.role, user.font_family);
       document.getElementById('userRole').innerHTML = getRoleBadge(user.role);
       
-
       if (user.display_name === 'PunchDrunk' || user.role === 'creator') {
         applyCustomBg('/bg.mp4');
       } else {
-
         if (user.background_url) {
           applyCustomBg(user.background_url);
         } else {
@@ -122,38 +118,47 @@ if (document.getElementById('userName')) {
   }
 }
 
+// --- ЧАТ (WebSocket) ---
 if (document.getElementById('chatMessages')) {
   resetVideoBg();
   const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
   
   if (currentUser) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}`);
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}`);
+    
     ws.onopen = () => { chatMsgs.innerHTML = ''; };
+    
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
+      
       if (data.type === 'history') {
         chatMsgs.innerHTML = '';
-        if (data.messages.length === 0) { chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No messages yet.</div>'; } 
-        else {
+        if (data.messages.length === 0) {
+          chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No messages yet.</div>';
+        } else {
           data.messages.forEach(m => {
             const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
-            div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="font-weight: bold; color: #000080; text-decoration: none;">${escapeHtml(m.user)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(m.text)}</span>`;
+            div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="text-decoration: none;">${formatName(m.user, m.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(m.text)}</span>`;
             chatMsgs.appendChild(div);
           });
           chatMsgs.scrollTop = chatMsgs.scrollHeight;
         }
       }
+
       if (data.type === 'chat') {
         const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
-        div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="font-weight: bold; color: #000080; text-decoration: none;">${escapeHtml(data.user)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(data.text)}</span>`;
+        div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="text-decoration: none;">${formatName(data.user, data.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(data.text)}</span>`;
         chatMsgs.appendChild(div); chatMsgs.scrollTop = chatMsgs.scrollHeight;
       }
+      
       if (data.type === 'online') {
         onlineUsers.innerHTML = data.users.length > 0 ? '🟢 Online: ' + data.users.map(u => `<a href="/profile.html?user=${encodeURIComponent(u)}" style="color: inherit;">${escapeHtml(u)}</a>`).join(', ') : '⚫ No one online';
       }
     };
+    
     ws.onclose = () => { onlineUsers.innerHTML = '⚫ Disconnected'; setTimeout(() => location.reload(), 5000); };
+    
     chatForm.addEventListener('submit', e => {
       e.preventDefault(); const t = chatInput.value.trim();
       if (t && ws.readyState === WebSocket.OPEN) { chatInput.value = ''; ws.send(JSON.stringify({ text: t })); }
@@ -165,7 +170,7 @@ if (document.getElementById('chatMessages')) {
   }
 }
 
-
+// --- ГЛАВНАЯ ---
 if (document.getElementById('threadList')) {
   resetVideoBg();
   fetch('/api/sections').then(r => r.json()).then(s => { 
@@ -253,6 +258,7 @@ if (document.getElementById('threadList')) {
   loadThreads();
 }
 
+// --- НАСТРОЙКИ ---
 if (document.getElementById('setNick')) {
   resetVideoBg();
   let avC = null, bnC = null, bgC = null;
@@ -293,88 +299,4 @@ if (document.getElementById('setNick')) {
   setupCrop('bgFile', 'bgCropperContainer', 'bgCropperImage', 'saveBgBtn', 16/9);
 
   window.applyAvatarCrop = () => { if (!window.cropavatarFile) return; document.getElementById('setAvatar').value = window.cropavatarFile.getCroppedCanvas({ width: 200, height: 200 }).toDataURL('image/jpeg', 0.85); document.getElementById('avatarCropperContainer').style.display = 'none'; document.getElementById('saveAvatarBtn').style.display = 'none'; updatePreview(); };
-  window.applyBannerCrop = () => { if (!window.cropbannerFile) return; document.getElementById('setBanner').value = window.cropbannerFile.getCroppedCanvas({ width: 1200, height: 400 }).toDataURL('image/jpeg', 0.85); document.getElementById('bannerCropperContainer').style.display = 'none'; document.getElementById('saveBannerBtn').style.display = 'none'; updatePreview(); };
-  
-  window.applyBgCrop = () => {
-    if (!window.cropbgFile) return;
-    const b = window.cropbgFile.getCroppedCanvas({ width: 2560, height: 1440, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.9);
-    document.getElementById('setBg').value = b;
-    document.getElementById('bgCropperContainer').style.display = 'none'; 
-    document.getElementById('saveBgBtn').style.display = 'none';
-    applyCustomBg(b);
-    if (window.cropbgFile) { window.cropbgFile.destroy(); window.cropbgFile = null; }
-  };
-
-  if (currentUser) {
-    document.getElementById('setNick').value = currentUser.login;
-    fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(d => { 
-      if (d.user.avatar_url) document.getElementById('setAvatar').value = d.user.avatar_url; 
-      if (d.user.banner_url) document.getElementById('setBanner').value = d.user.banner_url; 
-      if (d.user.background_url) { 
-        document.getElementById('setBg').value = d.user.background_url; 
-        applyCustomBg(d.user.background_url);
-      } 
-      document.getElementById('setBio').value = d.user.bio || ''; 
-      if (document.getElementById('setFont')) document.getElementById('setFont').value = d.user.font_family || ''; 
-      updatePreview(); 
-    });
-  }
-  
-  window.saveSettings = async () => {
-    if (!currentUser) return alert('Login first!');
-    const n = document.getElementById('setNick').value.trim(), a = document.getElementById('setAvatar').value, b = document.getElementById('setBanner').value, bg = document.getElementById('setBg').value, bio = document.getElementById('setBio').value.trim(), f = document.getElementById('setFont').value;
-    if (!n) return alert('Nickname empty');
-    try {
-      const r = await fetch('/api/profile', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: currentUser.id, display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: bg }) });
-      if (!r.ok) throw new Error('Save error');
-      currentUser.login = n; currentUser.avatar = a; currentUser.font = f; localStorage.setItem('4oom_user', JSON.stringify(currentUser)); location.href = '/';
-    } catch(e) { alert(e.message); }
-  };
-}
-
-
-if (document.getElementById('postList')) {
-  resetVideoBg();
-  const tid = urlParams.get('id');
-  
-  window.deletePost = async (id) => { 
-    if (!confirm('Delete?')) return; 
-    try { 
-      const r = await fetch('/api/posts/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ post_id: id, user_role: currentUser ? currentUser.role : 'guest', user_login: currentUser ? currentUser.login : 'guest' }) }); 
-      if (!r.ok) throw new Error((await r.json()).error); 
-      loadPosts(); 
-    } catch(e) { alert(e.message); } 
-  };
-  
-  window.loadPosts = async () => {
-    if (!tid) location.href = '/';
-    try {
-      const r = await fetch('/api/posts?thread=' + tid); 
-      if (!r.ok) { if (r.status === 404) { alert('Deleted'); location.href = '/'; return; } }
-      const data = await r.json(); 
-      document.querySelector('.window__bar span').textContent = '📄 ' + data.thread.title;
-
-      document.getElementById('postList').innerHTML = data.posts.map(p => {
-        const url = `/profile.html?user=${encodeURIComponent(p.author_name)}`;
-        const av = p.author_avatar ? `<a href="${url}"><img src="${p.author_avatar}" class="post__avatar"></a>` : `<a href="${url}"><div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block;"></div></a>`;
-        const canDel = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || p.author_name === currentUser.login);
-        return `<article class="post"><div class="post__head"><span class="post__author">${av}<a href="${url}" style="text-decoration:none; color:inherit;">${formatName(p.author_name, p.author_role, p.author_font)}</a>${getRoleBadge(p.author_role)}${canDel ? `<button class="delete-btn" onclick="deletePost(${p.id})">delete</button>` : ''}</span><span class="post__time">${new Date(p.created_at * 1000).toLocaleString()}</span></div><div class="post__body">${escapeHtml(p.body)}${p.image_url ? `<img src="${p.image_url}" class="post__img">` : ''}${p.music_url ? `<audio controls class="post__audio" src="${p.music_url}"></audio>` : ''}</div></article>`;
-      }).join('');
-    } catch(e) { document.getElementById('postList').innerHTML = 'Error'; }
-  };
-  
-  document.getElementById('replyForm').addEventListener('submit', async e => {
-    e.preventDefault(); const b = document.getElementById('replyBody').value, img = document.getElementById('replyImageFile').files[0], mus = document.getElementById('replyMusicFile').files[0];
-    if (!b) return;
-    try {
-      let iu = null, mu = null;
-      if (img) iu = await compressImage(img);
-      if (mus) mu = await new Promise(res => { const r = new FileReader(); r.onload = ev => res(ev.target.result); r.readAsDataURL(mus); });
-      
-      await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: tid, body: b, image_url: iu, music_url: mu, author_name: currentUser ? currentUser.login : 'guest' }) });
-      document.getElementById('replyBody').value = ''; document.getElementById('replyImageFile').value = ''; document.getElementById('replyMusicFile').value = '';
-      loadPosts();
-    } catch(e) { alert(e.message); }
-  });
-  loadPosts();
-}
+  window.applyBannerCrop = () => { if (!window.cropbannerFile) return; document.getElementById('setBanner').value = window.cropbannerFile.getCroppedCanvas({ width: 1200, height: 400 }).toDataURL('image/jpeg', 0.85); document.getElementById('bannerCropperContainer').style.display = 'none'; document
