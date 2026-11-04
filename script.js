@@ -40,6 +40,16 @@ function formatName(name, role, font) {
   return `<span style="${s}">${escapeHtml(name)}</span>`;
 }
 
+// Функция для применения фона (вынесена отдельно, чтобы не дублировать код)
+function applyCustomBg(url) {
+  if (!url) return;
+  document.body.style.backgroundImage = `url('${url}')`;
+  document.body.style.backgroundSize = 'cover';
+  document.body.style.backgroundPosition = 'center';
+  document.body.style.backgroundAttachment = 'fixed';
+  document.body.style.backgroundRepeat = 'no-repeat';
+}
+
 // --- ПРОФИЛЬ ---
 if (document.getElementById('userName')) {
   const login = urlParams.get('user');
@@ -51,13 +61,7 @@ if (document.getElementById('userName')) {
       document.getElementById('userName').innerHTML = formatName(user.display_name, user.role, user.font_family);
       document.getElementById('userRole').innerHTML = getRoleBadge(user.role);
       
-      if (user.background_url) { 
-        document.body.style.backgroundImage = `url('${user.background_url}')`; 
-        document.body.style.backgroundSize = 'cover'; 
-        document.body.style.backgroundPosition = 'center';
-        document.body.style.backgroundAttachment = 'fixed';
-        document.body.style.backgroundRepeat = 'no-repeat';
-      }
+      applyCustomBg(user.background_url);
       
       if (currentUser && currentUser.login === user.display_name) {
         const b = document.getElementById('editProfileBtn'); if (b) { b.style.display = 'inline-block'; b.href = '/settings.html'; }
@@ -115,13 +119,7 @@ if (document.getElementById('chatMessages')) {
 if (document.getElementById('threadList')) {
   if (currentUser) {
     fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(d => { 
-      if (d.user.background_url) { 
-        document.body.style.backgroundImage = `url('${d.user.background_url}')`; 
-        document.body.style.backgroundSize = 'cover';
-        document.body.style.backgroundPosition = 'center';
-        document.body.style.backgroundAttachment = 'fixed';
-        document.body.style.backgroundRepeat = 'no-repeat';
-      } 
+      if (d.user.background_url) applyCustomBg(d.user.background_url); 
     });
   }
   
@@ -246,15 +244,18 @@ if (document.getElementById('setNick')) {
   
   window.applyBgCrop = () => {
     if (!window.cropbgFile) return;
-    const b = window.cropbgFile.getCroppedCanvas({ width: 1920, height: 1080, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.85);
+    // Сохраняем в 2K (2560x1440) и с высоким качеством 0.9
+    const b = window.cropbgFile.getCroppedCanvas({ width: 2560, height: 1440, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.9);
     document.getElementById('setBg').value = b;
     document.getElementById('bgCropperContainer').style.display = 'none'; 
     document.getElementById('saveBgBtn').style.display = 'none';
+    
     document.body.style.backgroundImage = `url('${b}')`;
     document.body.style.backgroundSize = 'cover';
     document.body.style.backgroundPosition = 'center';
     document.body.style.backgroundAttachment = 'fixed';
     document.body.style.backgroundRepeat = 'no-repeat';
+    
     if (window.cropbgFile) { window.cropbgFile.destroy(); window.cropbgFile = null; }
   };
 
@@ -265,11 +266,7 @@ if (document.getElementById('setNick')) {
       if (d.user.banner_url) document.getElementById('setBanner').value = d.user.banner_url; 
       if (d.user.background_url) { 
         document.getElementById('setBg').value = d.user.background_url; 
-        document.body.style.backgroundImage = `url('${d.user.background_url}')`; 
-        document.body.style.backgroundSize = 'cover';
-        document.body.style.backgroundPosition = 'center';
-        document.body.style.backgroundAttachment = 'fixed';
-        document.body.style.backgroundRepeat = 'no-repeat';
+        applyCustomBg(d.user.background_url);
       } 
       document.getElementById('setBio').value = d.user.bio || ''; 
       if (document.getElementById('setFont')) document.getElementById('setFont').value = d.user.font_family || ''; 
@@ -310,6 +307,11 @@ if (document.getElementById('postList')) {
       const data = await r.json(); 
       document.querySelector('.window__bar span').textContent = '📄 ' + data.thread.title;
       
+      // Применяем фон и в треде, если он есть у пользователя
+      if (currentUser) {
+         fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(res => res.json()).then(d => { if (d.user.background_url) applyCustomBg(d.user.background_url); });
+      }
+
       document.getElementById('postList').innerHTML = data.posts.map(p => {
         const url = `/profile.html?user=${encodeURIComponent(p.author_name)}`;
         const av = p.author_avatar ? `<a href="${url}"><img src="${p.author_avatar}" class="post__avatar"></a>` : `<a href="${url}"><div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block;"></div></a>`;
