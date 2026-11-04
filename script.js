@@ -4,7 +4,6 @@ let currentUser = null;
 const userJson = localStorage.getItem('4oom_user');
 if (userJson) { try { currentUser = JSON.parse(userJson); } catch(e) { localStorage.removeItem('4oom_user'); } }
 
-// Получаем текущий раздел из URL (если пусто, значит home)
 const urlParams = new URLSearchParams(window.location.search);
 const currentSection = urlParams.get('section');
 
@@ -23,11 +22,13 @@ function formatName(name, role) {
 // --- ГЛАВНАЯ СТРАНИЦА ---
 if (document.getElementById('threadList')) {
   
-  // Подсвечиваем активную вкладку в меню
-  if (currentSection) {
-    document.querySelector('.nav__link[style="font-weight: bold;"]').style.fontWeight = 'normal';
-    const activeLink = document.querySelector(`.nav__link[href="?section=${currentSection}"]`);
-    if (activeLink) activeLink.style.fontWeight = 'bold';
+  // Подсветка активной вкладки
+  if (!currentSection) {
+    document.getElementById('nav-home').style.fontWeight = 'bold';
+  } else if (currentSection === 'general') {
+    document.getElementById('nav-general').style.fontWeight = 'bold';
+  } else if (currentSection === 'my') {
+    document.getElementById('nav-my').style.fontWeight = 'bold';
   }
 
   if (currentUser) {
@@ -61,8 +62,13 @@ if (document.getElementById('threadList')) {
   window.loadThreads = async function() {
     const list = document.getElementById('threadList');
     try {
-      // Передаем раздел на сервер, чтобы он отфильтровал треды
-      const endpoint = currentSection ? `/api/threads?section=${currentSection}` : '/api/threads';
+      let endpoint = '/api/threads';
+      if (currentSection === 'my' && currentUser) {
+        endpoint = `/api/threads?my=${encodeURIComponent(currentUser.login)}`;
+      } else if (currentSection && currentSection !== 'my') {
+        endpoint = `/api/threads?section=${currentSection}`;
+      }
+
       const r = await fetch(endpoint);
       let threads = await r.json();
       
@@ -71,7 +77,6 @@ if (document.getElementById('threadList')) {
         return; 
       }
 
-      // Если мы на главной, показываем только 5 самых обсуждаемых тредов
       if (!currentSection) {
         threads = threads.sort((a, b) => b.reply_count - a.reply_count).slice(0, 5);
       }
@@ -79,9 +84,7 @@ if (document.getElementById('threadList')) {
       list.innerHTML = threads.map(function(t) {
         const canDelete = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || t.author_name === currentUser.login);
         const deleteBtn = canDelete ? `<button class="delete-btn" onclick="event.preventDefault(); deleteThread(${t.first_post_id})">delete</button>` : '';
-        
-        // Если мы на главной, добавляем метку раздела к треду
-        const sectionBadge = !currentSection ? `<span style="font-size:10px; color:#000080; margin-right:4px;">[${t.section_slug}]</span>` : '';
+        const sectionBadge = (!currentSection || currentSection === 'my') ? `<span style="font-size:10px; color:#000080; margin-right:4px;">[${t.section_slug}]</span>` : '';
         
         return `<li class="thread">
           <a href="/thread.html?id=${t.id}">
@@ -97,12 +100,12 @@ if (document.getElementById('threadList')) {
   window.submitThread = async function() {
     const title = document.getElementById('newTitle').value;
     const body = document.getElementById('newBody').value;
+    const section = document.getElementById('newSection').value; // Берем выбранный раздел
     const image_url = document.getElementById('newImage').value;
     const music_url = document.getElementById('newMusic').value;
+    
     if (!title || !body) return alert('Fill in title and text');
     try {
-      // Привязываем тред к текущему разделу (если мы на главной, то к general)
-      const section = currentSection || 'general'; 
       const res = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, image_url, music_url, section_slug: section, author_name: currentUser ? currentUser.login : 'guest' }) });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Server error'); }
       document.getElementById('createForm').style.display = 'none';
