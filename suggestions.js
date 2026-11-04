@@ -1,4 +1,4 @@
-// Список разделов для подсказок (только для поля ввода)
+
 const customSuggestions = [
   "general",
   "webcore",
