@@ -47,30 +47,7 @@ function formatName(name, role, font) {
   return `<span style="${s}">${escapeHtml(name)}</span>`;
 }
 
-// Универсальная функция для применения фона (картинка или видео)
-function applyCustomBg(url) {
-  const video = document.getElementById('bgVideo');
-  if (!url) {
-    if (video) video.style.display = 'none';
-    document.body.style.backgroundImage = 'none';
-    document.body.style.backgroundColor = '#000';
-    return;
-  }
-  if (url.endsWith('.mp4')) {
-    document.body.style.backgroundImage = 'none';
-    document.body.style.backgroundColor = 'transparent';
-    if (video) { video.src = url; video.style.display = 'block'; video.play().catch(e => console.log(e)); }
-  } else {
-    if (video) video.style.display = 'none';
-    document.body.style.backgroundImage = `url('${url}')`;
-    document.body.style.backgroundSize = 'cover';
-    document.body.style.backgroundPosition = 'center';
-    document.body.style.backgroundAttachment = 'fixed';
-    document.body.style.backgroundRepeat = 'no-repeat';
-  }
-}
-
-// --- ПРОФИЛЬ (ЕДИНСТВЕННОЕ МЕСТО, ГДЕ ПРИМЕНЯЕТСЯ ФОН) ---
+// --- ПРОФИЛЬ (ЕДИНСТВЕННОЕ МЕСТО С ФОНОМ) ---
 if (document.getElementById('userName')) {
   const login = urlParams.get('user');
   if (!login) location.href = '/';
@@ -81,9 +58,15 @@ if (document.getElementById('userName')) {
       document.getElementById('userName').innerHTML = formatName(user.display_name, user.role, user.font_family);
       document.getElementById('userRole').innerHTML = getRoleBadge(user.role);
       
-      // ПРИМЕНЯЕМ ФОН ТОЛЬКО ЗДЕСЬ
-      if (user.background_url) {
-        applyCustomBg(user.background_url);
+      // ЭФФЕКТ НЕОЖИДАННОСТИ: Если зашли на профиль создателя, включаем видео
+      if (user.display_name === 'PunchDrunk' || user.role === 'creator') {
+        const video = document.getElementById('bgVideo');
+        if (video) {
+          video.src = '/bg.mp4';
+          video.style.display = 'block';
+          video.play().catch(e => console.log('Autoplay blocked'));
+          document.body.style.backgroundImage = 'none'; // Убираем звезды
+        }
       }
       
       if (currentUser && currentUser.login === user.display_name) {
@@ -242,9 +225,9 @@ if (document.getElementById('threadList')) {
   loadThreads();
 }
 
-// --- НАСТРОЙКИ ---
+// --- НАСТРОЙКИ (БЕЗ ЗАГРУЗКИ ФОНА) ---
 if (document.getElementById('setNick')) {
-  let avC = null, bnC = null, bgC = null;
+  let avC = null, bnC = null;
   
   function updatePreview() {
     const n = document.getElementById('setNick').value || 'YourNickname', f = document.getElementById('setFont').value;
@@ -279,59 +262,27 @@ if (document.getElementById('setNick')) {
   
   setupCrop('avatarFile', 'avatarCropperContainer', 'avatarCropperImage', 'saveAvatarBtn', 1);
   setupCrop('bannerFile', 'bannerCropperContainer', 'bannerCropperImage', 'saveBannerBtn', 3);
-  setupCrop('bgFile', 'bgCropperContainer', 'bgCropperImage', 'saveBgBtn', 16/9);
 
   window.applyAvatarCrop = () => { if (!window.cropavatarFile) return; document.getElementById('setAvatar').value = window.cropavatarFile.getCroppedCanvas({ width: 200, height: 200 }).toDataURL('image/jpeg', 0.85); document.getElementById('avatarCropperContainer').style.display = 'none'; document.getElementById('saveAvatarBtn').style.display = 'none'; updatePreview(); };
   window.applyBannerCrop = () => { if (!window.cropbannerFile) return; document.getElementById('setBanner').value = window.cropbannerFile.getCroppedCanvas({ width: 1200, height: 400 }).toDataURL('image/jpeg', 0.85); document.getElementById('bannerCropperContainer').style.display = 'none'; document.getElementById('saveBannerBtn').style.display = 'none'; updatePreview(); };
-  
-  window.applyBgCrop = () => {
-    if (!window.cropbgFile) return;
-    const b = window.cropbgFile.getCroppedCanvas({ width: 2560, height: 1440, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.9);
-    document.getElementById('setBg').value = b;
-    document.getElementById('bgCropperContainer').style.display = 'none'; 
-    document.getElementById('saveBgBtn').style.display = 'none';
-    applyCustomBg(b);
-    if (window.cropbgFile) { window.cropbgFile.destroy(); window.cropbgFile = null; }
-  };
 
   if (currentUser) {
     document.getElementById('setNick').value = currentUser.login;
-    
-    if (currentUser.role === 'creator') {
-      const cBg = document.getElementById('creatorBgUrl');
-      if (cBg) cBg.style.display = 'block';
-    }
-
     fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(d => { 
       if (d.user.avatar_url) document.getElementById('setAvatar').value = d.user.avatar_url; 
       if (d.user.banner_url) document.getElementById('setBanner').value = d.user.banner_url; 
-      if (d.user.background_url) { 
-        document.getElementById('setBg').value = d.user.background_url; 
-        if (d.user.background_url.endsWith('.mp4') && document.getElementById('setBgUrl')) {
-           document.getElementById('setBgUrl').value = d.user.background_url;
-        }
-        applyCustomBg(d.user.background_url);
-      } 
       document.getElementById('setBio').value = d.user.bio || ''; 
       if (document.getElementById('setFont')) document.getElementById('setFont').value = d.user.font_family || ''; 
       updatePreview(); 
     });
   }
-
-  window.applyCreatorBg = function() {
-    const url = document.getElementById('setBgUrl').value.trim();
-    if (url) {
-      document.getElementById('setBg').value = url; 
-      applyCustomBg(url);
-    }
-  };
   
   window.saveSettings = async () => {
     if (!currentUser) return alert('Login first!');
-    const n = document.getElementById('setNick').value.trim(), a = document.getElementById('setAvatar').value, b = document.getElementById('setBanner').value, bg = document.getElementById('setBg').value, bio = document.getElementById('setBio').value.trim(), f = document.getElementById('setFont').value;
+    const n = document.getElementById('setNick').value.trim(), a = document.getElementById('setAvatar').value, b = document.getElementById('setBanner').value, bio = document.getElementById('setBio').value.trim(), f = document.getElementById('setFont').value;
     if (!n) return alert('Nickname empty');
     try {
-      const r = await fetch('/api/profile', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: currentUser.id, display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: bg }) });
+      const r = await fetch('/api/profile', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: currentUser.id, display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: null }) });
       if (!r.ok) throw new Error('Save error');
       currentUser.login = n; currentUser.avatar = a; currentUser.font = f; localStorage.setItem('4oom_user', JSON.stringify(currentUser)); location.href = '/';
     } catch(e) { alert(e.message); }
