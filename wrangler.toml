@@ -17,6 +17,12 @@ bindings = [
   { name = "BUG_ROOM", class_name = "BugRoom" }
 ]
 
+# Оставляем старую миграцию для ChatRoom (если он уже был создан)
 [[migrations]]
 tag = "v1"
-new_classes = ["ChatRoom", "BugRoom"]
+new_classes = ["ChatRoom"]
+
+# Создаём BugRoom с обязательным SQLite-хранилищем
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["BugRoom"]
