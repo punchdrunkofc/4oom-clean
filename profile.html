@@ -12,8 +12,8 @@
 </style>
 </head>
 <body>
-<!-- Контейнер для видео-фона -->
-<video id="bgVideo" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none;"></video>
+<!-- Видео-фон с фиолетовым фильтром -->
+<video id="bgVideo" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none; filter: sepia(1) hue-rotate(220deg) saturate(3) brightness(0.6);"></video>
 
 <header class="header window">
   <div class="window__bar"><span>4OOM</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/settings.html'">⚙</button></div></div>
