@@ -614,7 +614,9 @@ if (document.getElementById('setNick')) {
                 background: false,
                 autoCropArea: 1,
                 responsive: true
-              }); 
+              });
+              console.log(window['crop' + fileId]);
+              console.log(c.offsetWidth, c.offsetHeight);
             } else {
               console.warn('Cropper.js is not loaded.');
             }
