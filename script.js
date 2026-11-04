@@ -1,4 +1,3 @@
-
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 function compressImage(file, maxWidth = 800) {
@@ -31,7 +30,7 @@ let dbSections = [];
 function getRoleBadge(role) {
   if (!role || role === 'user') return '';
   if (role === 'creator') return `<span class="role-badge role-creator-glitter">CREATOR</span>`;
-  const labels = { moderator: 'MOD', editor: 'EDITOR' };
+  const labels = { moderator: 'MODERATOR', editor: 'EDITOR' };
   return `<span class="role-badge role-${role}">${labels[role]}</span>`;
 }
 
