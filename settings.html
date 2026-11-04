@@ -13,7 +13,7 @@
   .preview-bio { padding: 8px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px; font-family: 'Times New Roman', serif; min-height: 40px; font-size: 12px; }
   
   /* КОНТЕЙНЕР ДЛЯ КРОППЕРА */
-  .cropper-container { 
+  .av_cropper-container { 
     width: 100%; 
     height: 300px; 
     background: #e0e0e0; 
@@ -26,12 +26,58 @@
     transition: opacity 0.2s;
   }
   /* Когда добавляем класс active, он становится видимым */
-  .cropper-container.active {
+  .av_cropper-container.active {
     opacity: 1;
     pointer-events: auto;
   }
   /* Картинка внутри */
-  .cropper-container img {
+  .av_cropper-container img {
+    display: block;
+    max-width: 100%;
+  }
+
+  .ban_cropper-container { 
+    width: 100%; 
+    height: 300px; 
+    background: #e0e0e0; 
+    margin-bottom: 12px; 
+    border: 2px solid #808080; 
+    overflow: hidden; 
+    position: relative;
+    opacity: 0; /* Невидим изначально */
+    pointer-events: none; /* Не кликается изначально */
+    transition: opacity 0.2s;
+  }
+  /* Когда добавляем класс active, он становится видимым */
+  .ban_cropper-container.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  /* Картинка внутри */
+  .ban_cropper-container img {
+    display: block;
+    max-width: 100%;
+  }
+
+  .bg_cropper-container { 
+    width: 100%; 
+    height: 300px; 
+    background: #e0e0e0; 
+    margin-bottom: 12px; 
+    border: 2px solid #808080; 
+    overflow: hidden; 
+    position: relative;
+    opacity: 0; /* Невидим изначально */
+    pointer-events: none; /* Не кликается изначально */
+    transition: opacity 0.2s;
+  }
+  /* Когда добавляем класс active, он становится видимым */
+  .bg_cropper-container.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  /* Картинка внутри */
+  .bg_cropper-container img {
     display: block;
     max-width: 100%;
   }
@@ -53,7 +99,7 @@
       
       <label>Upload Avatar (Square):</label>
       <input type="file" id="avatarFile" accept="image/*" style="margin-bottom: 8px;">
-      <div id="avatarCropperContainer" class="cropper-container">
+      <div id="avatarCropperContainer" class="av_cropper-container">
         <img id="avatarCropperImage" src="" alt="Avatar to crop">
       </div>
       <button type="button" id="saveAvatarBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyAvatarCrop()">Apply Avatar Crop</button>
@@ -61,7 +107,7 @@
 
       <label>Upload Profile Banner (Wide):</label>
       <input type="file" id="bannerFile" accept="image/*" style="margin-bottom: 8px;">
-      <div id="bannerCropperContainer" class="cropper-container">
+      <div id="bannerCropperContainer" class="ban_cropper-container">
         <img id="bannerCropperImage" src="" alt="Banner to crop">
       </div>
       <button type="button" id="saveBannerBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyBannerCrop()">Apply Banner Crop</button>
@@ -69,7 +115,7 @@
 
       <label>Upload Custom Background (Image):</label>
       <input type="file" id="bgFile" accept="image/*" style="margin-bottom: 8px;">
-      <div id="bgCropperContainer" class="cropper-container">
+      <div id="bgCropperContainer" class="bg_cropper-container">
         <img id="bgCropperImage" src="" alt="Background to crop">
       </div>
       <button type="button" id="saveBgBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyBgCrop()">Apply Background</button>
