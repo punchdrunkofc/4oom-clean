@@ -1,4 +1,3 @@
-
 const customSuggestions = [
   "general",
   "webcore",
