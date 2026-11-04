@@ -103,7 +103,6 @@ if (document.getElementById('userName')) {
       const list = document.getElementById('userThreads');
       list.innerHTML = (threads && threads.length > 0) ? threads.map(t => `<li class="thread" style="text-align: left;"><a href="/thread.html?id=${t.id}"><span class="thread__title">[${t.section_slug}] ${escapeHtml(t.title)}</span><span class="thread__meta">${t.reply_count} replies</span></a></li>`).join('') : '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">No threads yet.</span></a></li>';
 
-      // СПИСОК ДРУЗЕЙ В ПРОФИЛЕ
       if (currentUser && currentUser.login === user.display_name) {
         const fs = document.getElementById('friendsSection');
         if (fs) fs.style.display = 'block';
@@ -115,9 +114,8 @@ if (document.getElementById('userName')) {
           } else {
             list.innerHTML = friends.map(f => `
               <div style="display: flex; align-items: center; gap: 8px; padding: 4px; border-bottom: 1px dotted #ccc;">
-                <img src="${f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect width=%2224%22 height=%2224%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2212%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" style="width: 24px; height: 24px; border: 1px solid #808080;">
+                <img src="${f.avatar_url || '...'}" style="width: 24px; height: 24px; border: 1px solid #808080;">
                 <a href="/profile.html?user=${encodeURIComponent(f.display_name)}" style="text-decoration: none;">${formatName(f.display_name, f.role, null)}</a>
-                <button class="neon-btn" style="padding: 1px 4px; font-size: 10px; margin-left: auto;" onclick="openDM(${user.id}, ${f.id}, '${f.display_name}')">Message</button>
               </div>
             `).join('');
           }
@@ -132,7 +130,7 @@ if (document.getElementById('userName')) {
   }
 }
 
-// --- ЧАТ ---
+// --- ЧАТ НА ГЛАВНОЙ ---
 if (document.getElementById('chatMessages')) {
   resetVideoBg();
   const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
@@ -180,7 +178,6 @@ if (document.getElementById('chatMessages')) {
 if (document.getElementById('threadList')) {
   resetVideoBg();
   
-  // ЗАГРУЗКА ПОЛЬЗОВАТЕЛЕЙ (С ПРОВЕРКОЙ СВЯЗЕЙ)
   if (currentUser) {
     fetch('/api/friends/all?user_id=' + currentUser.id).then(r => r.json()).then(existingLinks => {
       fetch('/api/users').then(r => r.json()).then(users => {
@@ -194,10 +191,9 @@ if (document.getElementById('threadList')) {
           const isMe = currentUser.login === u.display_name;
           const hasLink = existingLinks.includes(u.id);
           const friendBtn = (!isMe && !hasLink) ? `<button class="neon-btn" style="padding: 2px 6px; font-size: 10px; margin-left: 8px;" onclick="sendFriendRequest(${u.id})">+ Add Friend</button>` : '';
-          
           return `<div style="display: flex; align-items: center; justify-content: space-between; padding: 6px; border-bottom: 1px dotted #ccc;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <img src="${u.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect width=%2224%22 height=%2224%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2212%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" style="width: 24px; height: 24px; border: 1px solid #808080;">
+              <img src="${u.avatar_url || '...'}" style="width: 24px; height: 24px; border: 1px solid #808080;">
               <a href="/profile.html?user=${encodeURIComponent(u.display_name)}" style="text-decoration: none;">${formatName(u.display_name, u.role, null)}</a>
               ${getRoleBadge(u.role)}
             </div>
@@ -205,7 +201,7 @@ if (document.getElementById('threadList')) {
           </div>`;
         }).join('');
       });
-    }).catch(e => console.error('Links load error', e));
+    }).catch(e => console.error(e));
   } else {
     fetch('/api/users').then(r => r.json()).then(users => {
       const list = document.getElementById('usersList');
@@ -248,7 +244,7 @@ if (document.getElementById('threadList')) {
   if (currentUser) {
     const pb = document.getElementById('profileBox');
     if(pb) {
-      pb.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(currentUser.login)}"><img src="${currentUser.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect width=%2280%22 height=%2280%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" class="avatar"></a><p class="profile__name"><a href="/profile.html?user=${encodeURIComponent(currentUser.login)}" style="text-decoration:none; color:inherit;">${formatName(currentUser.login, currentUser.role, currentUser.font)}</a> ${getRoleBadge(currentUser.role)}</p><p class="profile__status">online</p><button class="neon-btn" onclick="location.href='/settings.html'">settings</button><button class="neon-btn" onclick="localStorage.clear();location.reload()">logout</button>`;
+      pb.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(currentUser.login)}"><img src="${currentUser.avatar || '...'}" class="avatar"></a><p class="profile__name"><a href="/profile.html?user=${encodeURIComponent(currentUser.login)}" style="text-decoration:none; color:inherit;">${formatName(currentUser.login, currentUser.role, currentUser.font)}</a> ${getRoleBadge(currentUser.role)}</p><p class="profile__status">online</p><button class="neon-btn" onclick="location.href='/settings.html'">settings</button><button class="neon-btn" onclick="localStorage.clear();location.reload()">logout</button>`;
     }
   }
   
@@ -281,262 +277,4 @@ if (document.getElementById('threadList')) {
               <span class="thread__meta">by ${formatName(t.author_name, t.author_role, t.author_font)} ${getRoleBadge(t.author_role)} · ${t.reply_count} replies</span>
             </a>
           </div>
-          <div>${canDel ? `<button class="delete-btn" onclick="deleteThread(${t.first_post_id})">delete</button>` : ''}</div>
-        </li>`;
-      }).join('');
-    } catch(e) { list.innerHTML = '<li>Error</li>'; }
-  };
-  
-  window.submitThread = async () => {
-    const title = document.getElementById('newTitle').value, body = document.getElementById('newBody').value, section = document.getElementById('newSection').value.trim().toLowerCase().replace(/\s+/g, '-'), img = document.getElementById('newImageFile').files[0], mus = document.getElementById('newMusicFile').files[0];
-    if (!title || !body || !section) return alert('Fill all fields');
-    try {
-      let iu = null, mu = null;
-      if (img) iu = await compressImage(img);
-      if (mus) mu = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(mus); });
-      
-      const r = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, image_url: iu, music_url: mu, section_slug: section, author_name: currentUser ? currentUser.login : 'guest' }) });
-      if (!r.ok) throw new Error((await r.json()).error);
-      location.href = `/?section=${section}`;
-    } catch(e) { alert(e.message); }
-  };
-  loadThreads();
-}
-
-// --- НАСТРОЙКИ ---
-if (document.getElementById('setNick')) {
-  resetVideoBg();
-  let avC = null, bnC = null, bgC = null;
-  
-  function updatePreview() {
-    const n = document.getElementById('setNick').value || 'YourNickname', f = document.getElementById('setFont').value;
-    const pn = document.getElementById('previewName'); if(pn) { pn.textContent = n; pn.style.fontFamily = f || 'var(--font-pixel)'; }
-    const pa = document.getElementById('previewAvatar'); if(pa) pa.src = document.getElementById('setAvatar').value || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2230%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
-    const b = document.getElementById('setBanner').value;
-    const pb = document.getElementById('previewBanner'); if(pb) { pb.style.display = b ? 'block' : 'none'; if (b) pb.src = b; }
-    const bio = document.getElementById('setBio').value;
-    const pbio = document.getElementById('previewBio'); if(pbio) pbio.textContent = bio || 'This user has not written a bio yet.';
-    const pr = document.getElementById('previewRole'); if(pr) pr.innerHTML = getRoleBadge(currentUser ? currentUser.role : 'user');
-  }
-  
-  ['setNick', 'setBio'].forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', updatePreview); });
-  const sf = document.getElementById('setFont'); if(sf) sf.addEventListener('change', updatePreview);
-
-  const setupCrop = (fileId, containerId, imgId, btnId, ratio) => {
-    const f = document.getElementById(fileId), c = document.getElementById(containerId), i = document.getElementById(imgId), b = document.getElementById(btnId);
-    if (f && typeof Cropper !== 'undefined') {
-      f.addEventListener('change', e => { 
-        const file = e.target.files[0]; if (!file) return; 
-        const r = new FileReader(); 
-        r.onload = ev => { 
-          i.src = ev.target.result; c.style.display = 'block'; b.style.display = 'inline-block'; 
-          if (window['crop' + fileId]) window['crop' + fileId].destroy(); 
-          window['crop' + fileId] = new Cropper(i, { aspectRatio: ratio, viewMode: 1 }); 
-        }; 
-        r.readAsDataURL(file); 
-      });
-    }
-  };
-  
-  setupCrop('avatarFile', 'avatarCropperContainer', 'avatarCropperImage', 'saveAvatarBtn', 1);
-  setupCrop('bannerFile', 'bannerCropperContainer', 'bannerCropperImage', 'saveBannerBtn', 3);
-  setupCrop('bgFile', 'bgCropperContainer', 'bgCropperImage', 'saveBgBtn', 16/9);
-
-  window.applyAvatarCrop = () => { if (!window.cropavatarFile) return; document.getElementById('setAvatar').value = window.cropavatarFile.getCroppedCanvas({ width: 200, height: 200 }).toDataURL('image/jpeg', 0.85); document.getElementById('avatarCropperContainer').style.display = 'none'; document.getElementById('saveAvatarBtn').style.display = 'none'; updatePreview(); };
-  window.applyBannerCrop = () => { if (!window.cropbannerFile) return; document.getElementById('setBanner').value = window.cropbannerFile.getCroppedCanvas({ width: 1200, height: 400 }).toDataURL('image/jpeg', 0.85); document.getElementById('bannerCropperContainer').style.display = 'none'; document.getElementById('saveBannerBtn').style.display = 'none'; updatePreview(); };
-  
-  window.applyBgCrop = () => {
-    if (!window.cropbgFile) return;
-    const b = window.cropbgFile.getCroppedCanvas({ width: 2560, height: 1440, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.9);
-    document.getElementById('setBg').value = b;
-    document.getElementById('bgCropperContainer').style.display = 'none'; 
-    document.getElementById('saveBgBtn').style.display = 'none';
-    applyCustomBg(b);
-    if (window.cropbgFile) { window.cropbgFile.destroy(); window.cropbgFile = null; }
-  };
-
-  if (currentUser) {
-    document.getElementById('setNick').value = currentUser.login;
-    fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(d => { 
-      if (d.user.avatar_url) document.getElementById('setAvatar').value = d.user.avatar_url; 
-      if (d.user.banner_url) document.getElementById('setBanner').value = d.user.banner_url; 
-      if (d.user.background_url) { 
-        document.getElementById('setBg').value = d.user.background_url; 
-        applyCustomBg(d.user.background_url);
-      } 
-      document.getElementById('setBio').value = d.user.bio || ''; 
-      if (document.getElementById('setFont')) document.getElementById('setFont').value = d.user.font_family || ''; 
-      updatePreview(); 
-    });
-  }
-  
-  window.saveSettings = async () => {
-    if (!currentUser) return alert('Login first!');
-    const n = document.getElementById('setNick').value.trim(), a = document.getElementById('setAvatar').value, b = document.getElementById('setBanner').value, bg = document.getElementById('setBg').value, bio = document.getElementById('setBio').value.trim(), f = document.getElementById('setFont').value;
-    if (!n) return alert('Nickname empty');
-    try {
-      const r = await fetch('/api/profile', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: currentUser.id, display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: bg }) });
-      if (!r.ok) throw new Error('Save error');
-      currentUser.login = n; currentUser.avatar = a; currentUser.font = f; localStorage.setItem('4oom_user', JSON.stringify(currentUser)); location.href = '/';
-    } catch(e) { alert(e.message); }
-  };
-}
-
-// --- ТРЕД ---
-if (document.getElementById('postList')) {
-  resetVideoBg();
-  const tid = urlParams.get('id');
-  
-  window.deletePost = async (id) => { 
-    if (!confirm('Delete?')) return; 
-    try { 
-      const r = await fetch('/api/posts/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ post_id: id, user_role: currentUser ? currentUser.role : 'guest', user_login: currentUser ? currentUser.login : 'guest' }) }); 
-      if (!r.ok) throw new Error((await r.json()).error); 
-      loadPosts(); 
-    } catch(e) { alert(e.message); } 
-  };
-  
-  window.loadPosts = async () => {
-    if (!tid) location.href = '/';
-    try {
-      const r = await fetch('/api/posts?thread=' + tid); 
-      if (!r.ok) { if (r.status === 404) { alert('Deleted'); location.href = '/'; return; } }
-      const data = await r.json(); 
-      document.querySelector('.window__bar span').textContent = '📄 ' + data.thread.title;
-
-      document.getElementById('postList').innerHTML = data.posts.map(p => {
-        const url = `/profile.html?user=${encodeURIComponent(p.author_name)}`;
-        const av = p.author_avatar ? `<a href="${url}"><img src="${p.author_avatar}" class="post__avatar"></a>` : `<a href="${url}"><div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block;"></div></a>`;
-        const canDel = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || p.author_name === currentUser.login);
-        return `<article class="post"><div class="post__head"><span class="post__author">${av}<a href="${url}" style="text-decoration:none; color:inherit;">${formatName(p.author_name, p.author_role, p.author_font)}</a>${getRoleBadge(p.author_role)}${canDel ? `<button class="delete-btn" onclick="deletePost(${p.id})">delete</button>` : ''}</span><span class="post__time">${new Date(p.created_at * 1000).toLocaleString()}</span></div><div class="post__body">${escapeHtml(p.body)}${p.image_url ? `<img src="${p.image_url}" class="post__img">` : ''}${p.music_url ? `<audio controls class="post__audio" src="${p.music_url}"></audio>` : ''}</div></article>`;
-      }).join('');
-    } catch(e) { document.getElementById('postList').innerHTML = 'Error'; }
-  };
-  
-  document.getElementById('replyForm').addEventListener('submit', async e => {
-    e.preventDefault(); 
-    const b = document.getElementById('replyBody').value;
-    const imgEl = document.getElementById('replyImageFile'); const img = imgEl ? imgEl.files[0] : null;
-    const musEl = document.getElementById('replyMusicFile'); const mus = musEl ? musEl.files[0] : null;
-    
-    if (!b) return;
-    try {
-      let iu = null, mu = null;
-      if (img) iu = await compressImage(img);
-      if (mus) mu = await new Promise(res => { const r = new FileReader(); r.onload = ev => res(ev.target.result); r.readAsDataURL(mus); });
-      
-      await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: tid, body: b, image_url: iu, music_url: mu, author_name: currentUser ? currentUser.login : 'guest' }) });
-      document.getElementById('replyBody').value = ''; if(imgEl) imgEl.value = ''; if(musEl) musEl.value = '';
-      loadPosts();
-    } catch(e) { alert(e.message); }
-  });
-  loadPosts();
-}
-
-// --- УВЕДОМЛЕНИЯ ---
-if (document.getElementById('notifBtn')) {
-  const notifBtn = document.getElementById('notifBtn');
-  const notifDropdown = document.getElementById('notifDropdown');
-  const notifList = document.getElementById('notifList');
-  const notifCount = document.getElementById('notifCount');
-
-  notifBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    notifDropdown.style.display = notifDropdown.style.display === 'none' ? 'block' : 'none';
-    if (notifDropdown.style.display === 'block') loadNotifications();
-  });
-  document.addEventListener('click', (e) => {
-    if (!notifDropdown.contains(e.target) && e.target !== notifBtn) notifDropdown.style.display = 'none';
-  });
-
-  async function loadNotifications() {
-    if (!currentUser) {
-      notifList.innerHTML = '<div style="color: #888; text-align: center;">Login to see notifications.</div>';
-      notifCount.textContent = '';
-      return;
-    }
-    try {
-      const res = await fetch('/api/friends/incoming?user_id=' + currentUser.id);
-      const requests = await res.json();
-      if (!requests || requests.length === 0) {
-        notifList.innerHTML = '<div style="color: #888; text-align: center;">No new notifications.</div>';
-        notifCount.textContent = '';
-        return;
-      }
-      notifCount.textContent = ` (${requests.length})`;
-      notifList.innerHTML = requests.map(r => `
-        <div style="padding: 6px; border-bottom: 1px dotted #ccc; display: flex; align-items: center; gap: 6px;">
-          <img src="${r.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2220%22 height=%2220%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2210%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" style="width: 20px; height: 20px;">
-          <span><b>${escapeHtml(r.display_name)}</b> wants to be friends!</span>
-          <button class="neon-btn" style="padding: 1px 4px; font-size: 10px; margin-left: auto;" onclick="acceptFriend(${r.id})">Accept</button>
-        </div>
-      `).join('');
-    } catch(e) { notifList.innerHTML = '<div style="color: red;">Error loading notifications.</div>'; }
-  }
-
-  window.acceptFriend = async function(friendId) {
-    if (!confirm('Accept friend request?')) return;
-    try {
-      const res = await fetch('/api/friends/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUser.id, friend_id: friendId }) });
-      if (!res.ok) throw new Error('Error');
-      alert('Friend added!');
-      loadNotifications();
-    } catch(e) { alert(e.message); }
-  };
-
-  loadNotifications();
-}
-
-// --- ЛИЧНЫЕ СООБЩЕНИЯ ---
-let currentDM = { senderId: null, receiverId: null, receiverName: '' };
-
-window.openDM = function(myId, friendId, friendName) {
-  currentDM = { senderId: myId, receiverId: friendId, receiverName: friendName };
-  document.getElementById('dmTitle').textContent = `Message to ${friendName}`;
-  document.getElementById('dmModal').style.display = 'flex';
-  loadDMMessages();
-};
-
-async function loadDMMessages() {
-  const box = document.getElementById('dmMessages');
-  if (!currentDM.senderId || !currentDM.receiverId) return;
-  const res = await fetch(`/api/messages?sender_id=${currentDM.senderId}&receiver_id=${currentDM.receiverId}`);
-  const messages = await res.json();
-  if (!messages || messages.length === 0) {
-    box.innerHTML = '<div style="text-align: center; color: #888;">No messages yet. Say hi!</div>';
-  } else {
-    box.innerHTML = messages.map(m => {
-      const isMe = m.sender_id === currentDM.senderId;
-      return `<div style="margin-bottom: 6px; text-align: ${isMe ? 'right' : 'left'};">
-        <span style="background: ${isMe ? '#c0c0c0' : '#e0e0e0'}; padding: 2px 6px; border: 1px solid #808080; border-radius: 4px; display: inline-block;">
-          ${escapeHtml(m.body)}
-        </span>
-      </div>`;
-    }).join('');
-    box.scrollTop = box.scrollHeight;
-  }
-}
-
-if (document.getElementById('dmForm')) {
-  document.getElementById('dmForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const input = document.getElementById('dmInput');
-    const text = input.value.trim();
-    if (!text) return;
-    input.value = '';
-    await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: currentDM.senderId, receiver_id: currentDM.receiverId, body: text }) });
-    loadDMMessages();
-  });
-}
-
-// ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ ОТПРАВКИ ЗАПРОСА В ДРУЗЬЯ
-window.sendFriendRequest = async function(friendId) {
-  if (!currentUser) return alert('Login first!');
-  if (!confirm('Send friend request?')) return;
-  try {
-    const res = await fetch('/api/friends/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUser.id, friend_id: friendId }) });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
-    alert('Friend request sent!');
-    location.reload(); // Перезагружаем, чтобы кнопка исчезла
-  } catch(e) { alert('Error: ' + e.message); }
-};
+          <div>${canDel ? `<button class="delete-btn" onclick="deleteThread(${t.first_post_id})">
