@@ -28,7 +28,7 @@ export class ChatRoom extends DurableObject {
     const role = url.searchParams.get('role') || 'user';
     const userId = url.searchParams.get('uid') || '0';
 
-    // Удаляем старую сессию этого же пользователя
+    // Удаляем старую сессию этого же пользователя, чтобы не было дублей онлайна
     for (let [ws, session] of this.sessions.entries()) {
       if (session.userId === userId) {
         try { ws.close(1000, 'New session opened'); } catch (e) {}
@@ -64,7 +64,6 @@ export class ChatRoom extends DurableObject {
   }
 
   broadcastOnline() {
-    // Собираем уникальные ники
     const onlineUsers = [...new Set(Array.from(this.sessions.values()).map(s => s.nick))];
     const msg = JSON.stringify({ type: 'online', users: onlineUsers });
     this.ctx.getWebSockets().forEach((client) => { try { client.send(msg); } catch (e) {} });
@@ -216,12 +215,13 @@ export default {
         return new Response(JSON.stringify({ user, threads }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // --- ОБНОВЛЕНИЕ ПРОФИЛЯ ---
+      // --- ОБНОВЛЕНИЕ ПРОФИЛЯ (ОЧИСТКА СТАРЫХ ДАННЫХ) ---
       if (url.pathname === '/api/profile' && request.method === 'POST') {
         const b = await request.json();
         if (!b.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
         
         try {
+          // Обновляем данные. SQL UPDATE автоматически перезапишет старые Base64-строки новыми.
           await env.DB.prepare(`UPDATE users SET display_name = ?, bio = ?, font_family = ?, avatar_url = ?, banner_url = ?, background_url = ? WHERE id = ?`)
             .bind(b.display_name, b.bio || null, b.font_family || null, b.avatar_url || null, b.banner_url || null, b.background_url || null, b.user_id).run();
           return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -291,18 +291,29 @@ export default {
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // --- УДАЛЕНИЕ ПОСТОВ / ТРЕДОВ ---
+      // --- УДАЛЕНИЕ ПОСТОВ / ТРЕДОВ (С ОЧИСТКОЙ КАРТИНОК) ---
       if (url.pathname === '/api/posts/delete' && request.method === 'POST') {
         const b = await request.json();
+        
         const post = await env.DB.prepare(`SELECT * FROM posts WHERE id = ?`).bind(b.post_id).first();
         if (!post) return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: cors });
+        
         const authorCheck = await env.DB.prepare(`SELECT display_name FROM users WHERE id = ?`).bind(post.author_id).first();
         if (!['creator', 'moderator', 'editor'].includes(b.user_role) && (!authorCheck || authorCheck.display_name !== b.user_login)) {
           return new Response(JSON.stringify({ error: 'No permission' }), { status: 403, headers: cors });
         }
+        
         const first = await env.DB.prepare(`SELECT id FROM posts WHERE thread_id = ? ORDER BY created_at ASC LIMIT 1`).bind(post.thread_id).first();
-        if (first && first.id === post.id) await env.DB.prepare(`DELETE FROM threads WHERE id = ?`).bind(post.thread_id).run();
-        else await env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(b.post_id).run();
+        
+        if (first && first.id === post.id) {
+          // УДАЛЯЕМ ВЕСЬ ТРЕД: сначала все посты (и их картинки), потом сам тред
+          await env.DB.prepare(`DELETE FROM posts WHERE thread_id = ?`).bind(post.thread_id).run();
+          await env.DB.prepare(`DELETE FROM threads WHERE id = ?`).bind(post.thread_id).run();
+        } else {
+          // УДАЛЯЕМ ТОЛЬКО ОДИН ПОСТ
+          await env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(b.post_id).run();
+        }
+        
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
