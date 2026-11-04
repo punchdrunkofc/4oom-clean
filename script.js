@@ -47,6 +47,21 @@ function formatName(name, role, font) {
   return `<span style="${s}">${escapeHtml(name)}</span>`;
 }
 
+// Функция для сброса фона (вызывается на всех страницах, кроме профиля создателя)
+function resetVideoBg() {
+  const video = document.getElementById('bgVideo');
+  if (video) {
+    video.pause();
+    video.style.display = 'none';
+    video.src = '';
+  }
+  document.body.style.backgroundImage = '';
+  document.body.style.backgroundSize = '';
+  document.body.style.backgroundPosition = '';
+  document.body.style.backgroundAttachment = '';
+  document.body.style.backgroundRepeat = '';
+}
+
 // --- ПРОФИЛЬ (ЕДИНСТВЕННОЕ МЕСТО С ФОНОМ) ---
 if (document.getElementById('userName')) {
   const login = urlParams.get('user');
@@ -66,10 +81,12 @@ if (document.getElementById('userName')) {
             video.src = '/bg.mp4';
           }
           video.style.display = 'block';
-          video.currentTime = 0; // Начинаем с начала
+          video.currentTime = 0;
           video.play().catch(e => console.log('Autoplay blocked'));
           document.body.style.backgroundImage = 'none'; // Убираем звезды
         }
+      } else {
+        resetVideoBg(); // Если это чужой профиль, видео нет
       }
       
       if (currentUser && currentUser.login === user.display_name) {
@@ -92,6 +109,7 @@ if (document.getElementById('userName')) {
 
 // --- ЧАТ (WebSocket) ---
 if (document.getElementById('chatMessages')) {
+  resetVideoBg(); // На главной видео быть не должно
   const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
   
   if (currentUser) {
@@ -143,6 +161,8 @@ if (document.getElementById('chatMessages')) {
 
 // --- ГЛАВНАЯ (БЕЗ ПРИМЕНЕНИЯ ФОНА) ---
 if (document.getElementById('threadList')) {
+  resetVideoBg(); // На главной видео быть не должно
+  
   fetch('/api/sections').then(r => r.json()).then(s => { 
     dbSections = s.map(x => x.section_slug); 
     const sel = document.getElementById('sectionSelect'); 
@@ -230,6 +250,7 @@ if (document.getElementById('threadList')) {
 
 // --- НАСТРОЙКИ (БЕЗ ЗАГРУЗКИ ФОНА) ---
 if (document.getElementById('setNick')) {
+  resetVideoBg(); // В настройках видео не нужно
   let avC = null, bnC = null;
   
   function updatePreview() {
@@ -294,6 +315,7 @@ if (document.getElementById('setNick')) {
 
 // --- ТРЕД (БЕЗ ПРИМЕНЕНИЯ ФОНА) ---
 if (document.getElementById('postList')) {
+  resetVideoBg(); // В тредах видео не нужно
   const tid = urlParams.get('id');
   
   window.deletePost = async (id) => { 
@@ -336,54 +358,4 @@ if (document.getElementById('postList')) {
     } catch(e) { alert(e.message); }
   });
   loadPosts();
-}
-// Внутри if (user.display_name === 'PunchDrunk' || user.role === 'creator')
-const video = document.getElementById('bgVideo');
-if (video) {
-    // Создаем клон, если его еще нет
-    let videoClone = document.getElementById('bgVideoClone');
-    if (!videoClone) {
-        videoClone = video.cloneNode(true);
-        videoClone.id = 'bgVideoClone';
-        videoClone.style.display = 'none'; // Скрыт по умолчанию
-        document.body.appendChild(videoClone);
-    }
-
-    if (video.src.indexOf('/bg.mp4') === -1) {
-        video.src = '/bg.mp4';
-        videoClone.src = '/bg.mp4';
-    }
-    
-    video.style.display = 'block';
-    video.currentTime = 0;
-    video.play().catch(e => console.log('Autoplay blocked'));
-    document.body.style.backgroundImage = 'none';
-
-    // Логика переключения
-    let isOriginal = true;
-    
-    // Функция для переключения
-    const switchVideo = () => {
-        if (isOriginal) {
-            videoClone.currentTime = 0;
-            videoClone.play();
-            videoClone.style.display = 'block';
-            video.style.display = 'none';
-            video.pause();
-            video.currentTime = 0; // Сбрасываем оригинал
-            isOriginal = false;
-        } else {
-            video.currentTime = 0;
-            video.play();
-            video.style.display = 'block';
-            videoClone.style.display = 'none';
-            videoClone.pause();
-            videoClone.currentTime = 0;
-            isOriginal = true;
-        }
-    };
-
-    // Слушаем конец видео
-    video.onended = switchVideo;
-    videoClone.onended = switchVideo;
 }
