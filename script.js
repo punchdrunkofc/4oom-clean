@@ -70,7 +70,6 @@ function applyCustomBg(url) {
 
 function resetVideoBg() { applyCustomBg(null); }
 
-
 // ================= 1. ПРОФИЛЬ =================
 if (document.getElementById('userName')) {
   const login = urlParams.get('user');
@@ -122,11 +121,11 @@ if (document.getElementById('userName')) {
   }
 }
 
-// ================= 2. ГЛАВНАЯ И ЧАТ =================
+// ================= 2. ГЛАВНАЯ И ЧАТЫ =================
 if (document.getElementById('threadList')) {
   resetVideoBg();
   
-  // ЧАТ
+  // --- ОБЫЧНЫЙ ЧАТ (Lobby) ---
   if (document.getElementById('chatMessages')) {
     const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
     if (currentUser) {
@@ -168,7 +167,66 @@ if (document.getElementById('threadList')) {
     }
   }
 
-  // СПИСОК ЮЗЕРОВ
+  // --- БАГ-ЧАТ (Bug Reports) ---
+  if (document.getElementById('bugMessages')) {
+    const bugMsgs = document.getElementById('bugMessages'), bugForm = document.getElementById('bugForm'), bugInput = document.getElementById('bugInput');
+    
+    if (currentUser) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsBug = new WebSocket(`${protocol}//${window.location.host}/api/bugs/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}`);
+      
+      wsBug.onopen = () => { bugMsgs.innerHTML = ''; };
+      
+      wsBug.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'history') {
+          bugMsgs.innerHTML = '';
+          if (!Array.isArray(data.messages) || data.messages.length === 0) { 
+            bugMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">Пока нет репортов.</div>'; 
+          } else {
+            data.messages.forEach(m => {
+              const div = document.createElement('div'); 
+              div.style.marginBottom = '6px'; 
+              div.style.fontSize = '12px';
+              div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="text-decoration: none;">${formatName(m.user, m.role, null)}:</a> <span style="font-family: 'Times New Roman', serif; color: #800000;">${escapeHtml(m.text)}</span>`;
+              bugMsgs.appendChild(div);
+            });
+            bugMsgs.scrollTop = bugMsgs.scrollHeight;
+          }
+        }
+        
+        if (data.type === 'chat') {
+          const div = document.createElement('div'); 
+          div.style.marginBottom = '6px'; 
+          div.style.fontSize = '12px';
+          div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="text-decoration: none;">${formatName(data.user, data.role, null)}:</a> <span style="font-family: 'Times New Roman', serif; color: #800000;">${escapeHtml(data.text)}</span>`;
+          bugMsgs.appendChild(div); 
+          bugMsgs.scrollTop = bugMsgs.scrollHeight;
+        }
+      };
+      
+      wsBug.onclose = () => { bugMsgs.innerHTML = '⚫ Disconnected'; setTimeout(() => location.reload(), 5000); };
+      
+      bugForm.addEventListener('submit', e => {
+        e.preventDefault(); 
+        const t = bugInput.value.trim();
+        if (!t) return;
+        
+        const confirmed = confirm("⚠️ ВНИМАНИЕ!\n\nЭтот чат предназначен ИСКЛЮЧИТЕЛЬНО для сообщений о багах и ошибках.\n\nОн не для общения, флуда или оффтопа. Вы уверены, что хотите отправить это сообщение?");
+        
+        if (confirmed && wsBug.readyState === WebSocket.OPEN) { 
+          bugInput.value = ''; 
+          wsBug.send(JSON.stringify({ text: t })); 
+        }
+      });
+    } else {
+      bugMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">Войдите, чтобы отправлять баг-репорты.</div>';
+      bugForm.style.display = 'none';
+    }
+  }
+
+  // --- СПИСОК ЮЗЕРОВ ---
   if (currentUser) {
     fetch('/api/friends/all?user_id=' + currentUser.id).then(r => r.json()).then(existingLinks => {
       fetch('/api/users').then(r => r.json()).then(users => {
@@ -197,7 +255,7 @@ if (document.getElementById('threadList')) {
     });
   }
 
-  // СЕКЦИИ
+  // --- СЕКЦИИ ---
   fetch('/api/sections').then(r => r.json()).then(s => { 
     if (!Array.isArray(s)) return;
     dbSections = s.map(x => x.section_slug); 
@@ -529,7 +587,6 @@ if (document.getElementById('setNick')) {
   const sf = document.getElementById('setFont'); 
   if (sf) sf.addEventListener('change', updatePreview);
 
-  // Инициализация Cropper.js (ИСПРАВЛЕНО: безопасный вызов)
   const setupCrop = (fileId, containerId, imgId, btnId, ratio) => {
     const f = document.getElementById(fileId), c = document.getElementById(containerId), i = document.getElementById(imgId), b = document.getElementById(btnId);
     if (!f || !c || !i || !b) return;
@@ -600,7 +657,6 @@ if (document.getElementById('setNick')) {
     });
   }
   
-  // ИСПРАВЛЕНО: привязка кнопки SAVE по ID, а не через onclick
   document.getElementById('saveBtn')?.addEventListener('click', async () => {
     if (!currentUser) return alert('Login first!');
     
