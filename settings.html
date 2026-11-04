@@ -16,6 +16,9 @@
 </style>
 </head>
 <body>
+<!-- Контейнер для видео-фона -->
+<video id="bgVideo" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none;"></video>
+
 <header class="header window">
   <div class="window__bar"><span>4OOM</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/'">×</button></div></div>
   <nav class="nav"><a href="/" class="nav__link">← back to home</a></nav>
@@ -43,14 +46,20 @@
       <button type="button" id="saveBannerBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyBannerCrop()">Apply Banner Crop</button>
       <input type="hidden" id="setBanner" value="">
 
-      <!-- ЗАГРУЗКА ФОНА -->
-      <label>Upload Custom Background:</label>
+      <label>Upload Custom Background (Image):</label>
       <input type="file" id="bgFile" accept="image/*" style="margin-bottom: 8px;">
       <div id="bgCropperContainer">
         <img id="bgCropperImage" class="crop-img" src="" alt="Background to crop">
       </div>
       <button type="button" id="saveBgBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyBgCrop()">Apply Background</button>
       <input type="hidden" id="setBg" value="">
+
+      <!-- Эксклюзивное поле для видео (только для создателя) -->
+      <div id="creatorBgUrl" style="display: none; margin-bottom: 12px;">
+        <label style="font-size: 12px; display: block; margin-bottom: 4px; color: #800000;">Creator Only: Background Video URL (.mp4)</label>
+        <input type="text" id="setBgUrl" placeholder="/bg.mp4" style="width: 100%; padding: 4px;">
+        <button class="neon-btn" style="margin-top: 4px; padding: 2px 8px; font-size: 11px;" onclick="applyCreatorBg()">Apply Video</button>
+      </div>
 
       <label>Bio / Description:</label>
       <textarea id="setBio" placeholder="Tell us about yourself..." style="width: 100%; height: 100px; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;"></textarea>
