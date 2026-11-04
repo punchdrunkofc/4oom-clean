@@ -34,6 +34,7 @@ body { font-family: var(--font-pixel); font-size: 13px; background-color: #000; 
 .post__avatar { width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover; }
 .post__body { font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.4; margin-top: 4px; }
 .post__img { max-width: 100%; max-height: 400px; margin-top: 8px; border: 2px solid #808080; display: block; }
+.post__audio { margin-top: 8px; width: 100%; max-width: 400px; display: block; }
 .reply-form { padding: 8px 12px; }
 .reply-form__textarea { width: 100%; font-family: 'Times New Roman', serif; font-size: 13px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080; background: #fff; margin-bottom: 4px; }
 .reply-form__input { width: 100%; padding: 4px; margin-bottom: 8px; border: 2px solid; border-color: #808080 #fff #fff #808080; }
@@ -58,18 +59,15 @@ body { font-family: var(--font-pixel); font-size: 13px; background-color: #000; 
   100% { background-position: 200% center; }
 }
 
-/* ОБНОВЛЕННЫЙ БЕЙДЖ С ТВОЕЙ КАРТИНКОЙ */
 .role-creator-glitter {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
   color: #fff;
   font-weight: bold;
-  text-shadow: 1px 1px 2px #000, 0 0 2px #000; /* Чтобы текст читался на блестках */
-  
-  /* Твоя гифка */
+  text-shadow: 1px 1px 2px #000, 0 0 2px #000;
   background-image: url('/glitter.gif');
-  background-size: 100% 100%; /* Растягиваем картинку ровно под размер бейджа */
+  background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
 }
