@@ -37,7 +37,13 @@ function getRoleBadge(role) {
 function formatName(name, role, font) {
   const f = font && font.trim() !== '' ? font : 'var(--font-pixel)';
   const s = `font-family: ${f};`;
-  if (role === 'creator') return `<span class="creator-name" style="${s}">${escapeHtml(name)}</span>`;
+  
+  if (role === 'creator') {
+    return `<span class="creator-name" style="${s}">${escapeHtml(name)}</span>`;
+  } 
+  if (role === 'moderator') {
+    return `<span class="moderator-name" style="${s}">${escapeHtml(name)}</span>`;
+  }
   return `<span style="${s}">${escapeHtml(name)}</span>`;
 }
 
@@ -94,7 +100,6 @@ if (document.getElementById('chatMessages')) {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       
-      // Обработка ИСТОРИИ при подключении
       if (data.type === 'history') {
         chatMsgs.innerHTML = '';
         if (data.messages.length === 0) {
@@ -109,14 +114,12 @@ if (document.getElementById('chatMessages')) {
         }
       }
 
-      // Обработка НОВЫХ сообщений
       if (data.type === 'chat') {
         const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
         div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="font-weight: bold; color: #000080; text-decoration: none;">${escapeHtml(data.user)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(data.text)}</span>`;
         chatMsgs.appendChild(div); chatMsgs.scrollTop = chatMsgs.scrollHeight;
       }
       
-      // Обработка ОНЛАЙНА
       if (data.type === 'online') {
         onlineUsers.innerHTML = data.users.length > 0 ? '🟢 Online: ' + data.users.map(u => `<a href="/profile.html?user=${encodeURIComponent(u)}" style="color: inherit;">${escapeHtml(u)}</a>`).join(', ') : '⚫ No one online';
       }
