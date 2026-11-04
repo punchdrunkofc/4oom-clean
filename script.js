@@ -526,4 +526,68 @@ if (document.getElementById('setNick')) {
         r.onload = ev => { 
           i.src = ev.target.result; c.style.display = 'block'; b.style.display = 'inline-block'; 
           if (window['crop' + fileId]) window['crop' + fileId].destroy(); 
-         
+          window['crop' + fileId] = new Cropper(i, { aspectRatio: ratio, viewMode: 1 }); 
+        }; 
+        r.readAsDataURL(file); 
+      });
+    }
+  };
+  
+  setupCrop('avatarFile', 'avatarCropperContainer', 'avatarCropperImage', 'saveAvatarBtn', 1);
+  setupCrop('bannerFile', 'bannerCropperContainer', 'bannerCropperImage', 'saveBannerBtn', 3);
+  setupCrop('bgFile', 'bgCropperContainer', 'bgCropperImage', 'saveBgBtn', 16/9);
+
+  window.applyAvatarCrop = () => { if (!window.cropavatarFile) return; document.getElementById('setAvatar').value = window.cropavatarFile.getCroppedCanvas({ width: 200, height: 200 }).toDataURL('image/jpeg', 0.85); document.getElementById('avatarCropperContainer').style.display = 'none'; document.getElementById('saveAvatarBtn').style.display = 'none'; updatePreview(); };
+  window.applyBannerCrop = () => { if (!window.cropbannerFile) return; document.getElementById('setBanner').value = window.cropbannerFile.getCroppedCanvas({ width: 1200, height: 400 }).toDataURL('image/jpeg', 0.85); document.getElementById('bannerCropperContainer').style.display = 'none'; document.getElementById('saveBannerBtn').style.display = 'none'; updatePreview(); };
+  
+  window.applyBgCrop = () => {
+    if (!window.cropbgFile) return;
+    const b = window.cropbgFile.getCroppedCanvas({ width: 2560, height: 1440, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.9);
+    document.getElementById('setBg').value = b;
+    document.getElementById('bgCropperContainer').style.display = 'none'; 
+    document.getElementById('saveBgBtn').style.display = 'none';
+    applyCustomBg(b);
+    if (window.cropbgFile) { window.cropbgFile.destroy(); window.cropbgFile = null; }
+  };
+
+  if (currentUser) {
+    document.getElementById('setNick').value = currentUser.login;
+    fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(d => { 
+      if (!d.user) return;
+      if (d.user.avatar_url) document.getElementById('setAvatar').value = d.user.avatar_url; 
+      if (d.user.banner_url) document.getElementById('setBanner').value = d.user.banner_url; 
+      if (d.user.background_url) { 
+        document.getElementById('setBg').value = d.user.background_url; 
+        applyCustomBg(d.user.background_url);
+      } 
+      document.getElementById('setBio').value = d.user.bio || ''; 
+      if (document.getElementById('setFont')) document.getElementById('setFont').value = d.user.font_family || ''; 
+      updatePreview(); 
+    });
+  }
+  
+  window.saveSettings = async () => {
+    if (!currentUser) return alert('Login first!');
+    const n = document.getElementById('setNick').value.trim(), a = document.getElementById('setAvatar').value, b = document.getElementById('setBanner').value, bg = document.getElementById('setBg').value, bio = document.getElementById('setBio').value.trim(), f = document.getElementById('setFont').value;
+    if (!n) return alert('Nickname empty');
+    try {
+      const r = await fetch('/api/profile', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: currentUser.id, display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: bg }) });
+      if (!r.ok) throw new Error('Save error');
+      currentUser.login = n; currentUser.avatar = a; currentUser.font = f; localStorage.setItem('4oom_user', JSON.stringify(currentUser)); location.href = '/';
+    } catch(e) { alert(e.message); }
+  };
+}
+
+// --- ФУНКЦИИ ДРУЗЕЙ ---
+window.sendFriendRequest = async function(targetId) {
+  if (!currentUser) return alert('Login first');
+  try {
+    const r = await fetch('/api/friends/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: currentUser.id, friend_id: targetId })
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Error');
+    alert('Friend request sent!');
+  } catch (e) { alert(e.message); }
+};
