@@ -24,7 +24,7 @@ if (document.getElementById('threadList')) {
       <img src="${currentUser.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect width=%2280%22 height=%2280%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" class="avatar" alt="avatar">
       <p class="profile__name">${formatName(currentUser.login, currentUser.role)} ${getRoleBadge(currentUser.role)}</p>
       <p class="profile__status">online · github user</p>
-      <button class="neon-btn" onclick="location.href='/settings'">settings</button>
+      <button class="neon-btn" onclick="location.href='/settings.html'">settings</button>
       <button class="neon-btn" onclick="localStorage.clear();location.reload()">logout</button>
     `;
   }
@@ -56,10 +56,11 @@ if (document.getElementById('threadList')) {
       list.innerHTML = threads.map(function(t) {
         const canDelete = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || t.author_name === currentUser.login);
         const deleteBtn = canDelete ? `<button class="delete-btn" onclick="event.preventDefault(); deleteThread(${t.first_post_id})">delete</button>` : '';
+        // ИСПРАВЛЕНИЕ: передаем t.author_role вместо 'user'
         return `<li class="thread">
           <a href="/thread.html?id=${t.id}">
             <span class="thread__title">${escapeHtml(t.title)}</span>
-            <span class="thread__meta">by ${formatName(t.author_name, 'user')} · ${t.reply_count} replies</span>
+            <span class="thread__meta">by ${formatName(t.author_name, t.author_role)} · ${t.reply_count} replies</span>
           </a>
           ${deleteBtn}
         </li>`;
