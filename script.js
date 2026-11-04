@@ -519,7 +519,7 @@ if (document.getElementById('setNick')) {
   ['setNick', 'setBio'].forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', window.updatePreview); });
   const sf = document.getElementById('setFont'); if(sf) sf.addEventListener('change', window.updatePreview);
 
-  // Инициализация Cropper.js
+  // Инициализация Cropper.js с ПРАВИЛЬНЫМИ ID из HTML
   const setupCropper = (fileId, imgId, containerId, type, aspectRatio) => {
     const fileInput = document.getElementById(fileId);
     const img = document.getElementById(imgId);
@@ -594,8 +594,8 @@ if (document.getElementById('setNick')) {
     }).catch(e => console.error(e));
   }
 
-  // Сохранение
-  window.saveSettings = async () => {
+  // СОХРАНЕНИЕ ПРОФИЛЯ
+  document.getElementById('saveBtn')?.addEventListener('click', async () => {
     if (!currentUser) return alert('Not logged in');
     const payload = {
       user_id: currentUser.id,
@@ -612,17 +612,26 @@ if (document.getElementById('setNick')) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!r.ok) throw new Error((await r.json()).error || 'Save failed');
+      const res = await r.json();
+      if (!r.ok) throw new Error(res.error || 'Save failed');
+      
+      // Обновляем локальные данные, чтобы шапка сайта сразу подхватила изменения
       currentUser.login = payload.display_name;
       currentUser.font = payload.font_family;
       currentUser.avatar = payload.avatar_url;
       localStorage.setItem('4oom_user', JSON.stringify(currentUser));
+      
       alert('Profile saved!');
-      location.reload();
+      location.href = '/profile.html?user=' + encodeURIComponent(payload.display_name);
     } catch (err) {
-      alert(err.message);
+      alert('Error saving: ' + err.message);
     }
-  };
+  });
+
+  // ОТМЕНА
+  document.getElementById('cancelBtn')?.addEventListener('click', () => {
+    location.href = '/';
+  });
 }
 
 // --- ФУНКЦИИ ДРУЗЕЙ ---
