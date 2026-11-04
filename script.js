@@ -596,17 +596,30 @@ if (document.getElementById('setNick')) {
       const r = new FileReader(); 
       r.onload = ev => { 
         i.src = ev.target.result; 
+        
         c.style.display = 'block'; 
         b.style.display = 'inline-block'; 
         
-        setTimeout(() => {
-          if (window['crop' + fileId]) window['crop' + fileId].destroy(); 
-          if (typeof Cropper !== 'undefined') {
-            window['crop' + fileId] = new Cropper(i, { aspectRatio: ratio, viewMode: 1, background: false }); 
-          } else {
-            console.warn('Cropper.js is not loaded, cropping is unavailable.');
-          }
-        }, 100);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (window['crop' + fileId]) {
+              window['crop' + fileId].destroy(); 
+            }
+            
+            if (typeof Cropper !== 'undefined') {
+              window['crop' + fileId] = new Cropper(i, { 
+                aspectRatio: ratio, 
+                viewMode: 1, 
+                background: false,
+                autoCropArea: 1,
+                responsive: true,
+                checkCrossOrigin: false
+              }); 
+            } else {
+              console.warn('Cropper.js is not loaded.');
+            }
+          });
+        });
       }; 
       r.readAsDataURL(file); 
     });
