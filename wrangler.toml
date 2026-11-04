@@ -13,3 +13,4 @@ database_id = "2dbdb197-286d-4e55-a679-14224d5cd58a"
 [exports.ChatRoom]
 type = "durable-object"
 state = "deleted"
+ 
