@@ -6,26 +6,13 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1">
 <link rel="stylesheet" href="/style.css">
 <style>
-  .banner-container { 
-    width: 100%; 
-    height: 150px; 
-    overflow: hidden; 
-    position: relative; 
-    border-bottom: 2px solid var(--win-dark); 
-    background: #000; 
-  }
-  .banner { 
-    width: 100%; 
-    height: 100%; 
-    object-fit: cover; 
-    object-position: center; 
-    display: block; 
-  }
+  .banner-container { width: 100%; height: 150px; overflow: hidden; position: relative; border-bottom: 2px solid var(--win-dark); background: #000; }
+  .banner { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
   .bio-box { padding: 12px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 12px; font-family: 'Times New Roman', serif; min-height: 50px; }
 </style>
 </head>
 <body>
-
+<!-- Контейнер для видео-фона -->
 <video id="bgVideo" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none; filter: sepia(1) hue-rotate(220deg) saturate(3) brightness(0.6);"></video>
 
 <header class="header window">
@@ -64,9 +51,37 @@
       <li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">Loading...</span></a></li>
     </ul>
   </section>
+
+  <!-- БЛОК ДРУЗЕЙ -->
+  <section class="window" id="friendsSection" style="margin-top: 12px; display: none;">
+    <div class="window__bar"><span>🤝 friends</span></div>
+    <div id="friendsList" style="padding: 12px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px; font-family: 'Times New Roman', serif; min-height: 40px;">
+      Loading friends...
+    </div>
+  </section>
 </main>
 
 <footer class="footer"><p>4OOM © 2024</p></footer>
+
+<!-- МОДАЛЬНОЕ ОКНО ДЛЯ ЛС -->
+<div id="dmModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
+  <div class="window" style="width: 400px; max-width: 90vw;">
+    <div class="window__bar">
+      <span id="dmTitle">Message</span>
+      <button class="win-btn" onclick="document.getElementById('dmModal').style.display = 'none'">×</button>
+    </div>
+    <div id="dmMessages" style="height: 300px; overflow-y: auto; background: #fff; border-bottom: 2px solid #808080; padding: 8px; font-family: 'Times New Roman', serif; font-size: 13px;">
+      Loading...
+    </div>
+    <div style="padding: 8px; background: #e0e0e0;">
+      <form id="dmForm" style="display: flex; gap: 4px;">
+        <input type="text" id="dmInput" placeholder="Type a message..." style="flex-grow: 1; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
+        <button type="submit" class="neon-btn" style="margin: 0;">Send</button>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script src="/script.js"></script>
 </body>
 </html>
