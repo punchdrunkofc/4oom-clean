@@ -219,3 +219,9 @@ export default {
     return new Response('Not found', { status: 404 });
   },
 };
+export class ChatRoom {
+  constructor(state, env) {}
+  async fetch(request) {
+    return new Response('Chat is disabled', { status: 503 });
+  }
+}
