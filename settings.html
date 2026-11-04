@@ -12,20 +12,22 @@
   .preview-banner { width: 100%; height: 100px; background: #808080; object-fit: cover; display: block; border-bottom: 2px solid var(--win-dark); }
   .preview-bio { padding: 8px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px; font-family: 'Times New Roman', serif; min-height: 40px; font-size: 12px; }
   
-  /* ИСПРАВЛЕННЫЙ БЛОК ДЛЯ КРОППЕРА */
+  /* БЛОК ДЛЯ КРОППЕРА */
   .cropper-container { 
     width: 100%; 
     height: 300px; 
     background: #e0e0e0; 
     margin-bottom: 12px; 
-    display: none; 
     border: 2px solid #808080; 
     overflow: hidden; 
     position: relative;
+    display: none;
   }
+  /* Картинка изначально невидима, Cropper сам её покажет */
   .cropper-container img {
     display: block;
     max-width: 100%;
+    opacity: 0; 
   }
 </style>
 </head>
