@@ -130,7 +130,7 @@ if (document.getElementById('userName')) {
   }
 }
 
-// --- ЧАТ НА ГЛАВНОЙ ---
+// --- ЧАТ ---
 if (document.getElementById('chatMessages')) {
   resetVideoBg();
   const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
@@ -277,4 +277,240 @@ if (document.getElementById('threadList')) {
               <span class="thread__meta">by ${formatName(t.author_name, t.author_role, t.author_font)} ${getRoleBadge(t.author_role)} · ${t.reply_count} replies</span>
             </a>
           </div>
-          <div>${canDel ? `<button class="delete-btn" onclick="deleteThread(${t.first_post_id})">
+          <div>${canDel ? `<button class="delete-btn" onclick="deleteThread(${t.first_post_id})">delete</button>` : ''}</div>
+        </li>`;
+      }).join('');
+    } catch(e) { list.innerHTML = '<li>Error</li>'; }
+  };
+  
+  window.submitThread = async () => {
+    const title = document.getElementById('newTitle').value, body = document.getElementById('newBody').value, section = document.getElementById('newSection').value.trim().toLowerCase().replace(/\s+/g, '-'), img = document.getElementById('newImageFile').files[0], mus = document.getElementById('newMusicFile').files[0];
+    if (!title || !body || !section) return alert('Fill all fields');
+    try {
+      let iu = null, mu = null;
+      if (img) iu = await compressImage(img);
+      if (mus) mu = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(mus); });
+      
+      const r = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, image_url: iu, music_url: mu, section_slug: section, author_name: currentUser ? currentUser.login : 'guest' }) });
+      if (!r.ok) throw new Error((await r.json()).error);
+      location.href = `/?section=${section}`;
+    } catch(e) { alert(e.message); }
+  };
+  loadThreads();
+}
+
+// --- УВЕДОМЛЕНИЯ ---
+if (document.getElementById('notifBtn')) {
+  const notifBtn = document.getElementById('notifBtn');
+  const notifDropdown = document.getElementById('notifDropdown');
+  const notifList = document.getElementById('notifList');
+  const notifCount = document.getElementById('notifCount');
+
+  notifBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    notifDropdown.style.display = notifDropdown.style.display === 'none' ? 'block' : 'none';
+    if (notifDropdown.style.display === 'block') loadNotifications();
+  });
+  document.addEventListener('click', (e) => {
+    if (!notifDropdown.contains(e.target) && e.target !== notifBtn) notifDropdown.style.display = 'none';
+  });
+
+  async function loadNotifications() {
+    if (!currentUser) {
+      notifList.innerHTML = '<div style="color: #888; text-align: center;">Login to see notifications.</div>';
+      notifCount.textContent = '';
+      return;
+    }
+    try {
+      const res = await fetch('/api/friends/incoming?user_id=' + currentUser.id);
+      const requests = await res.json();
+      if (!requests || requests.length === 0) {
+        notifList.innerHTML = '<div style="color: #888; text-align: center;">No new notifications.</div>';
+        notifCount.textContent = '';
+        return;
+      }
+      notifCount.textContent = ` (${requests.length})`;
+      notifList.innerHTML = requests.map(r => `
+        <div style="padding: 6px; border-bottom: 1px dotted #ccc; display: flex; align-items: center; gap: 6px;">
+          <img src="${r.avatar_url || '...'}" style="width: 20px; height: 20px;">
+          <span><b>${escapeHtml(r.display_name)}</b> wants to be friends!</span>
+          <button class="neon-btn" style="padding: 1px 4px; font-size: 10px; margin-left: auto;" onclick="acceptFriend(${r.id})">Accept</button>
+        </div>
+      `).join('');
+    } catch(e) { notifList.innerHTML = '<div style="color: red;">Error loading notifications.</div>'; }
+  }
+
+  window.acceptFriend = async function(friendId) {
+    if (!confirm('Accept friend request?')) return;
+    try {
+      const res = await fetch('/api/friends/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUser.id, friend_id: friendId }) });
+      if (!res.ok) throw new Error('Error');
+      alert('Friend added!');
+      loadNotifications();
+    } catch(e) { alert(e.message); }
+  };
+
+  loadNotifications();
+}
+
+// --- МЕССЕНДЖЕР (ICQ STYLE) ---
+if (document.getElementById('msgrBtn')) {
+  const msgrBtn = document.getElementById('msgrBtn');
+  const msgrModal = document.getElementById('msgrModal');
+  const msgrFriendsList = document.getElementById('msgrFriendsList');
+  const msgrChatHeader = document.getElementById('msgrChatHeader');
+  const msgrChatBox = document.getElementById('msgrChatBox');
+  const msgrInput = document.getElementById('msgrInput');
+  const msgrSendBtn = document.getElementById('msgrSendBtn');
+  const msgrForm = document.getElementById('msgrForm');
+  const msgrEmojiBtn = document.getElementById('msgrEmojiBtn');
+  const msgrEmojiPanel = document.getElementById('msgrEmojiPanel');
+  
+  let activeChatId = null;
+  let activeChatName = '';
+  let msgrInterval = null;
+
+  msgrBtn.addEventListener('click', () => {
+    if (!currentUser) return alert('Login to use messenger!');
+    msgrModal.style.display = 'flex';
+    loadMsgrFriends();
+  });
+
+  msgrEmojiBtn.addEventListener('click', () => {
+    msgrEmojiPanel.style.display = msgrEmojiPanel.style.display === 'none' ? 'flex' : 'none';
+  });
+
+  window.insertEmoji = function(emoji) {
+    msgrInput.value += emoji;
+    msgrInput.focus();
+    msgrEmojiPanel.style.display = 'none';
+  };
+
+  async function loadMsgrFriends() {
+    msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888;">Loading...</div>';
+    try {
+      const res = await fetch('/api/friends/list?user_id=' + currentUser.id);
+      const friends = await res.json();
+      if (!friends || friends.length === 0) {
+        msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">No friends yet. Add someone on the main page.</div>';
+        return;
+      }
+      msgrFriendsList.innerHTML = friends.map(f => `
+        <div style="padding: 6px; border-bottom: 1px dotted #ccc; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="openMsgrChat(${f.id}, '${f.display_name}')">
+          <img src="${f.avatar_url || '...'}" style="width: 20px; height: 20px; border: 1px solid #808080;">
+          <span style="font-size: 12px;">${formatName(f.display_name, f.role, null)}</span>
+        </div>
+      `).join('');
+    } catch(e) { msgrFriendsList.innerHTML = 'Error loading friends.'; }
+  }
+
+  window.openMsgrChat = async function(friendId, friendName) {
+    activeChatId = friendId;
+    activeChatName = friendName;
+    msgrChatHeader.textContent = `Chat with ${friendName}`;
+    msgrInput.disabled = false;
+    msgrSendBtn.disabled = false;
+    msgrChatBox.innerHTML = '<div style="color: #888; text-align: center;">Loading messages...</div>';
+    
+    if (msgrInterval) clearInterval(msgrInterval);
+    await loadMsgrMessages();
+    msgrInterval = setInterval(loadMsgrMessages, 3000);
+  };
+
+  async function loadMsgrMessages() {
+    if (!activeChatId) return;
+    try {
+      const res = await fetch(`/api/messages?sender_id=${currentUser.id}&receiver_id=${activeChatId}`);
+      const messages = await res.json();
+      if (!messages || messages.length === 0) {
+        msgrChatBox.innerHTML = '<div style="color: #888; text-align: center; margin-top: 10px;">No messages yet. Say hi!</div>';
+      } else {
+        msgrChatBox.innerHTML = messages.map(m => {
+          const isMe = m.sender_id === currentUser.id;
+          return `<div style="margin-bottom: 6px; text-align: ${isMe ? 'right' : 'left'};">
+            <span style="background: ${isMe ? '#c0c0c0' : '#e0e0e0'}; padding: 2px 6px; border: 1px solid #808080; border-radius: 4px; display: inline-block; max-width: 80%; word-wrap: break-word;">
+              ${escapeHtml(m.body)}
+            </span>
+          </div>`;
+        }).join('');
+        msgrChatBox.scrollTop = msgrChatBox.scrollHeight;
+      }
+    } catch(e) { console.error(e); }
+  }
+
+  msgrForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = msgrInput.value.trim();
+    if (!text || !activeChatId) return;
+    
+    msgrInput.value = '';
+    msgrEmojiPanel.style.display = 'none';
+    try {
+      await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: currentUser.id, receiver_id: activeChatId, body: text }) });
+      loadMsgrMessages();
+    } catch(e) { alert('Error sending message'); }
+  });
+}
+
+// --- СТРАНИЦА ТРЕДА ---
+if (document.getElementById('postList')) {
+  resetVideoBg();
+  const tid = urlParams.get('id');
+  
+  window.deletePost = async (id) => { 
+    if (!confirm('Delete?')) return; 
+    try { 
+      const r = await fetch('/api/posts/delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ post_id: id, user_role: currentUser ? currentUser.role : 'guest', user_login: currentUser ? currentUser.login : 'guest' }) }); 
+      if (!r.ok) throw new Error((await r.json()).error); 
+      loadPosts(); 
+    } catch(e) { alert(e.message); } 
+  };
+  
+  window.loadPosts = async () => {
+    if (!tid) location.href = '/';
+    try {
+      const r = await fetch('/api/posts?thread=' + tid); 
+      if (!r.ok) { if (r.status === 404) { alert('Deleted'); location.href = '/'; return; } }
+      const data = await r.json(); 
+      document.querySelector('.window__bar span').textContent = '📄 ' + data.thread.title;
+
+      document.getElementById('postList').innerHTML = data.posts.map(p => {
+        const url = `/profile.html?user=${encodeURIComponent(p.author_name)}`;
+        const av = p.author_avatar ? `<a href="${url}"><img src="${p.author_avatar}" class="post__avatar"></a>` : `<a href="${url}"><div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block;"></div></a>`;
+        const canDel = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || p.author_name === currentUser.login);
+        return `<article class="post"><div class="post__head"><span class="post__author">${av}<a href="${url}" style="text-decoration:none; color:inherit;">${formatName(p.author_name, p.author_role, p.author_font)}</a>${getRoleBadge(p.author_role)}${canDel ? `<button class="delete-btn" onclick="deletePost(${p.id})">delete</button>` : ''}</span><span class="post__time">${new Date(p.created_at * 1000).toLocaleString()}</span></div><div class="post__body">${escapeHtml(p.body)}${p.image_url ? `<img src="${p.image_url}" class="post__img">` : ''}${p.music_url ? `<audio controls class="post__audio" src="${p.music_url}"></audio>` : ''}</div></article>`;
+      }).join('');
+    } catch(e) { document.getElementById('postList').innerHTML = 'Error'; }
+  };
+  
+  document.getElementById('replyForm').addEventListener('submit', async e => {
+    e.preventDefault(); 
+    const b = document.getElementById('replyBody').value;
+    const imgEl = document.getElementById('replyImageFile'); const img = imgEl ? imgEl.files[0] : null;
+    const musEl = document.getElementById('replyMusicFile'); const mus = musEl ? musEl.files[0] : null;
+    
+    if (!b) return;
+    try {
+      let iu = null, mu = null;
+      if (img) iu = await compressImage(img);
+      if (mus) mu = await new Promise(res => { const r = new FileReader(); r.onload = ev => res(ev.target.result); r.readAsDataURL(mus); });
+      
+      await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: tid, body: b, image_url: iu, music_url: mu, author_name: currentUser ? currentUser.login : 'guest' }) });
+      document.getElementById('replyBody').value = ''; if(imgEl) imgEl.value = ''; if(musEl) musEl.value = '';
+      loadPosts();
+    } catch(e) { alert(e.message); }
+  });
+  loadPosts();
+}
+
+// ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ ОТПРАВКИ ЗАПРОСА В ДРУЗЬЯ
+window.sendFriendRequest = async function(friendId) {
+  if (!currentUser) return alert('Login first!');
+  if (!confirm('Send friend request?')) return;
+  try {
+    const res = await fetch('/api/friends/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUser.id, friend_id: friendId }) });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
+    alert('Friend request sent!');
+    location.reload();
+  } catch(e) { alert('Error: ' + e.message); }
+};
