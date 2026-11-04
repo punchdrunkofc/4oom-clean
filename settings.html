@@ -11,13 +11,13 @@
   .preview-container { margin-top: 12px; border: 2px solid var(--win-dark); background: var(--win-bg); }
   .preview-banner { width: 100%; height: 100px; background: #808080; object-fit: cover; display: block; border-bottom: 2px solid var(--win-dark); }
   .preview-bio { padding: 8px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px; font-family: 'Times New Roman', serif; min-height: 40px; font-size: 12px; }
-  #avatarCropperContainer, #bannerCropperContainer { width: 100%; height: 300px; background: #000; margin-bottom: 12px; display: none; }
+  #avatarCropperContainer, #bannerCropperContainer, #bgCropperContainer { width: 100%; height: 300px; background: #000; margin-bottom: 12px; display: none; }
   .crop-img { max-width: 100%; display: block; }
 </style>
 </head>
 <body>
-<!-- Контейнер для видео-фона -->
-<video id="bgVideo" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none;"></video>
+<!-- Видео-фон для профиля -->
+<video id="bgVideo" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none; filter: sepia(1) hue-rotate(220deg) saturate(3) brightness(0.6);"></video>
 
 <header class="header window">
   <div class="window__bar"><span>4OOM</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/'">×</button></div></div>
@@ -45,6 +45,15 @@
       </div>
       <button type="button" id="saveBannerBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyBannerCrop()">Apply Banner Crop</button>
       <input type="hidden" id="setBanner" value="">
+
+      <!-- ЗАГРУЗКА ОБЫЧНОГО ФОНА (КАРТИНКА) -->
+      <label>Upload Custom Background (Image):</label>
+      <input type="file" id="bgFile" accept="image/*" style="margin-bottom: 8px;">
+      <div id="bgCropperContainer">
+        <img id="bgCropperImage" class="crop-img" src="" alt="Background to crop">
+      </div>
+      <button type="button" id="saveBgBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyBgCrop()">Apply Background</button>
+      <input type="hidden" id="setBg" value="">
 
       <label>Bio / Description:</label>
       <textarea id="setBio" placeholder="Tell us about yourself..." style="width: 100%; height: 100px; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;"></textarea>
