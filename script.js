@@ -102,6 +102,28 @@ if (document.getElementById('userName')) {
       
       const list = document.getElementById('userThreads');
       list.innerHTML = (threads && threads.length > 0) ? threads.map(t => `<li class="thread" style="text-align: left;"><a href="/thread.html?id=${t.id}"><span class="thread__title">[${t.section_slug}] ${escapeHtml(t.title)}</span><span class="thread__meta">${t.reply_count} replies</span></a></li>`).join('') : '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">No threads yet.</span></a></li>';
+
+      // ЗАГРУЗКА ДРУЗЕЙ (ТОЛЬКО ДЛЯ СВОЕГО ПРОФИЛЯ)
+      if (currentUser && currentUser.login === user.display_name) {
+        const fs = document.getElementById('friendsSection');
+        if (fs) fs.style.display = 'block';
+        fetch('/api/friends/list?user_id=' + user.id).then(res => res.json()).then(friends => {
+          const list = document.getElementById('friendsList');
+          if (!list) return;
+          if (!friends || friends.length === 0) {
+            list.innerHTML = '<div style="text-align: center; color: #888;">No friends yet. Add someone from the main page!</div>';
+          } else {
+            list.innerHTML = friends.map(f => `
+              <div style="display: flex; align-items: center; gap: 8px; padding: 4px; border-bottom: 1px dotted #ccc;">
+                <img src="${f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect width=%2224%22 height=%2224%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2212%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" style="width: 24px; height: 24px; border: 1px solid #808080;">
+                <a href="/profile.html?user=${encodeURIComponent(f.display_name)}" style="text-decoration: none;">${formatName(f.display_name, f.role, null)}</a>
+                <button class="neon-btn" style="padding: 1px 4px; font-size: 10px; margin-left: auto;" onclick="openDM(${user.id}, ${f.id}, '${f.display_name}')">Message</button>
+              </div>
+            `).join('');
+          }
+        }).catch(e => console.error('Friends load error', e));
+      }
+
     }).catch(e => {
       document.getElementById('userName').textContent = 'User not found';
       document.getElementById('userBio').textContent = '';
@@ -158,7 +180,6 @@ if (document.getElementById('chatMessages')) {
 if (document.getElementById('threadList')) {
   resetVideoBg();
   
-  // ЗАГРУЗКА ПОЛЬЗОВАТЕЛЕЙ
   fetch('/api/users').then(r => r.json()).then(users => {
     const list = document.getElementById('usersList');
     if (!list) return;
@@ -180,7 +201,6 @@ if (document.getElementById('threadList')) {
     }).join('');
   }).catch(e => console.error('Users load error', e));
 
-  // ОСТАЛЬНАЯ ЛОГИКА ГЛАВНОЙ
   fetch('/api/sections').then(r => r.json()).then(s => { 
     dbSections = s.map(x => x.section_slug); 
     const sel = document.getElementById('sectionSelect'); 
@@ -401,20 +421,109 @@ if (document.getElementById('postList')) {
   loadPosts();
 }
 
-// ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ ДРУЗЕЙ
+// --- УВЕДОМЛЕНИЯ ---
+if (document.getElementById('notifBtn')) {
+  const notifBtn = document.getElementById('notifBtn');
+  const notifDropdown = document.getElementById('notifDropdown');
+  const notifList = document.getElementById('notifList');
+  const notifCount = document.getElementById('notifCount');
+
+  notifBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    notifDropdown.style.display = notifDropdown.style.display === 'none' ? 'block' : 'none';
+    if (notifDropdown.style.display === 'block') loadNotifications();
+  });
+  document.addEventListener('click', (e) => {
+    if (!notifDropdown.contains(e.target) && e.target !== notifBtn) notifDropdown.style.display = 'none';
+  });
+
+  async function loadNotifications() {
+    if (!currentUser) {
+      notifList.innerHTML = '<div style="color: #888; text-align: center;">Login to see notifications.</div>';
+      notifCount.textContent = '';
+      return;
+    }
+    try {
+      const res = await fetch('/api/friends/incoming?user_id=' + currentUser.id);
+      const requests = await res.json();
+      if (!requests || requests.length === 0) {
+        notifList.innerHTML = '<div style="color: #888; text-align: center;">No new notifications.</div>';
+        notifCount.textContent = '';
+        return;
+      }
+      notifCount.textContent = ` (${requests.length})`;
+      notifList.innerHTML = requests.map(r => `
+        <div style="padding: 6px; border-bottom: 1px dotted #ccc; display: flex; align-items: center; gap: 6px;">
+          <img src="${r.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2220%22 height=%2220%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2210%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" style="width: 20px; height: 20px;">
+          <span><b>${escapeHtml(r.display_name)}</b> wants to be friends!</span>
+          <button class="neon-btn" style="padding: 1px 4px; font-size: 10px; margin-left: auto;" onclick="acceptFriend(${r.id})">Accept</button>
+        </div>
+      `).join('');
+    } catch(e) { notifList.innerHTML = '<div style="color: red;">Error loading notifications.</div>'; }
+  }
+
+  window.acceptFriend = async function(friendId) {
+    if (!confirm('Accept friend request?')) return;
+    try {
+      const res = await fetch('/api/friends/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUser.id, friend_id: friendId }) });
+      if (!res.ok) throw new Error('Error');
+      alert('Friend added!');
+      loadNotifications();
+    } catch(e) { alert(e.message); }
+  };
+
+  loadNotifications();
+}
+
+// --- ЛИЧНЫЕ СООБЩЕНИЯ ---
+let currentDM = { senderId: null, receiverId: null, receiverName: '' };
+
+window.openDM = function(myId, friendId, friendName) {
+  currentDM = { senderId: myId, receiverId: friendId, receiverName: friendName };
+  document.getElementById('dmTitle').textContent = `Message to ${friendName}`;
+  document.getElementById('dmModal').style.display = 'flex';
+  loadDMMessages();
+};
+
+async function loadDMMessages() {
+  const box = document.getElementById('dmMessages');
+  if (!currentDM.senderId || !currentDM.receiverId) return;
+  const res = await fetch(`/api/messages?sender_id=${currentDM.senderId}&receiver_id=${currentDM.receiverId}`);
+  const messages = await res.json();
+  if (!messages || messages.length === 0) {
+    box.innerHTML = '<div style="text-align: center; color: #888;">No messages yet. Say hi!</div>';
+  } else {
+    box.innerHTML = messages.map(m => {
+      const isMe = m.sender_id === currentDM.senderId;
+      return `<div style="margin-bottom: 6px; text-align: ${isMe ? 'right' : 'left'};">
+        <span style="background: ${isMe ? '#c0c0c0' : '#e0e0e0'}; padding: 2px 6px; border: 1px solid #808080; border-radius: 4px; display: inline-block;">
+          ${escapeHtml(m.body)}
+        </span>
+      </div>`;
+    }).join('');
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+if (document.getElementById('dmForm')) {
+  document.getElementById('dmForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('dmInput');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: currentDM.senderId, receiver_id: currentDM.receiverId, body: text }) });
+    loadDMMessages();
+  });
+}
+
+// ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ ОТПРАВКИ ЗАПРОСА В ДРУЗЬЯ
 window.sendFriendRequest = async function(friendId) {
   if (!currentUser) return alert('Login first!');
   if (!confirm('Send friend request?')) return;
   try {
-    const res = await fetch('/api/friends/request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: currentUser.id, friend_id: friendId })
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error);
-    }
+    const res = await fetch('/api/friends/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUser.id, friend_id: friendId }) });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
     alert('Friend request sent!');
   } catch(e) { alert('Error: ' + e.message); }
 };
