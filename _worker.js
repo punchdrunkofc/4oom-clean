@@ -31,9 +31,19 @@ export default {
         });
         const user = await userRes.json();
 
+        // Ищем или создаем пользователя в БД
+        let dbUser = await env.DB.prepare(`SELECT * FROM users WHERE github_id = ?`).bind(user.id).first();
+        if (!dbUser) {
+          await env.DB.prepare(
+            `INSERT INTO users (github_id, github_login, display_name, avatar_url) VALUES (?, ?, ?, ?)`
+          ).bind(user.id, user.login, user.login, user.avatar_url).run();
+          dbUser = await env.DB.prepare(`SELECT * FROM users WHERE github_id = ?`).bind(user.id).first();
+        }
+
+        const userJson = JSON.stringify({ id: dbUser.id, login: dbUser.display_name, avatar: dbUser.avatar_url });
+
         return new Response(`<!DOCTYPE html><html><body><script>
-          localStorage.setItem('4oom_user', '${user.login.replace(/'/g, "\\'")}');
-          localStorage.setItem('4oom_avatar', '${user.avatar_url}');
+          localStorage.setItem('4oom_user', JSON.stringify(${userJson}));
           location.href = '/';
         </script></body></html>`, { headers: { 'Content-Type': 'text/html' } });
       } catch (e) {
@@ -53,10 +63,21 @@ export default {
       try {
         if (!env.DB) return new Response(JSON.stringify({ error: 'Нет базы. Привяжи D1 в настройках!' }), { status: 500, headers: cors });
 
+        // Профиль (сохранение)
+        if (url.pathname === '/api/profile' && request.method === 'POST') {
+          const body = await request.json();
+          if (!body.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
+          await env.DB.prepare(`UPDATE users SET display_name = ?, avatar_url = ? WHERE id = ?`).bind(body.display_name, body.avatar_url, body.user_id).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        }
+
+        // Треды
         if (url.pathname === '/api/threads' && request.method === 'GET') {
           const { results } = await env.DB.prepare(`
-            SELECT t.*, (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count
-            FROM threads t ORDER BY t.updated_at DESC LIMIT 100
+            SELECT t.*, u.avatar_url AS author_avatar,
+            (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count
+            FROM threads t LEFT JOIN users u ON t.author_name = u.display_name
+            ORDER BY t.updated_at DESC LIMIT 100
           `).all();
           return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
@@ -72,10 +93,15 @@ export default {
           return new Response(JSON.stringify({ id: t.id }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
+        // Посты
         if (url.pathname === '/api/posts' && request.method === 'GET') {
           const threadId = url.searchParams.get('thread');
           const thread = await env.DB.prepare(`SELECT * FROM threads WHERE id = ?`).bind(threadId).first();
-          const { results } = await env.DB.prepare(`SELECT * FROM posts WHERE thread_id = ? ORDER BY created_at ASC`).bind(threadId).all();
+          const { results } = await env.DB.prepare(`
+            SELECT p.*, u.avatar_url AS author_avatar
+            FROM posts p LEFT JOIN users u ON p.author_name = u.display_name
+            WHERE p.thread_id = ? ORDER BY p.created_at ASC
+          `).bind(threadId).all();
           return new Response(JSON.stringify({ thread, posts: results }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
@@ -172,14 +198,15 @@ export default {
         <script>
           function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
           
-          const currentUser = localStorage.getItem('4oom_user');
-          const currentAvatar = localStorage.getItem('4oom_avatar');
+          const userJson = localStorage.getItem('4oom_user');
+          let currentUser = null;
+          if (userJson) { try { currentUser = JSON.parse(userJson); } catch(e) { localStorage.removeItem('4oom_user'); } }
           
           if (currentUser) {
-            document.getElementById('profileName').textContent = currentUser;
+            document.getElementById('profileName').textContent = currentUser.login;
             document.getElementById('profileBox').innerHTML = \`
-              <img src="\${currentAvatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect width=%2280%22 height=%2280%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" class="avatar" alt="avatar">
-              <p class="profile__name">\${escapeHtml(currentUser)}</p>
+              <img src="\${currentUser.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect width=%2280%22 height=%2280%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" class="avatar" alt="avatar">
+              <p class="profile__name">\${escapeHtml(currentUser.login)}</p>
               <p class="profile__status">online · github user</p>
               <button class="neon-btn" onclick="location.href='/settings'">настройки</button>
               <button class="neon-btn" onclick="localStorage.clear();location.reload()">выйти</button>
@@ -202,7 +229,7 @@ export default {
             const body = document.getElementById('newBody').value;
             if (!title || !body) return alert('Заполни все поля');
             try {
-              const res = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, section_slug: 'general', author_name: currentUser || 'guest' }) });
+              const res = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, section_slug: 'general', author_name: currentUser ? currentUser.login : 'guest' }) });
               if (!res.ok) {
                 const err = await res.json();
                 throw new Error(err.error || 'Ошибка сервера');
@@ -241,21 +268,37 @@ export default {
           </section>
         </main>
         <script>
-          // Загружаем текущие настройки
-          document.getElementById('setNick').value = localStorage.getItem('4oom_user') || '';
-          document.getElementById('setAvatar').value = localStorage.getItem('4oom_avatar') || '';
+          const userJson = localStorage.getItem('4oom_user');
+          let currentUser = null;
+          if (userJson) { try { currentUser = JSON.parse(userJson); } catch(e) {} }
 
-          function saveSettings() {
+          if (currentUser) {
+            document.getElementById('setNick').value = currentUser.login;
+            document.getElementById('setAvatar').value = currentUser.avatar || '';
+          }
+
+          async function saveSettings() {
+            if (!currentUser) return alert('Сначала войдите через GitHub!');
             const nick = document.getElementById('setNick').value.trim();
             const avatar = document.getElementById('setAvatar').value.trim();
             
             if (!nick) return alert('Никнейм не может быть пустым');
             
-            localStorage.setItem('4oom_user', nick);
-            localStorage.setItem('4oom_avatar', avatar);
-            
-            alert('Настройки сохранены!');
-            location.href = '/';
+            try {
+              const res = await fetch('/api/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: currentUser.id, display_name: nick, avatar_url: avatar })
+              });
+              if (!res.ok) throw new Error('Ошибка сохранения');
+              
+              currentUser.login = nick;
+              currentUser.avatar = avatar;
+              localStorage.setItem('4oom_user', JSON.stringify(currentUser));
+              
+              alert('Настройки сохранены!');
+              location.href = '/';
+            } catch(e) { alert('Ошибка: ' + e.message); }
           }
         </script>
       </body></html>`, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
@@ -282,8 +325,9 @@ export default {
         <script>
           function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
           
-          const currentUser = localStorage.getItem('4oom_user');
-          const currentAvatar = localStorage.getItem('4oom_avatar');
+          const userJson = localStorage.getItem('4oom_user');
+          let currentUser = null;
+          if (userJson) { try { currentUser = JSON.parse(userJson); } catch(e) {} }
           const threadId = new URLSearchParams(location.search).get('id');
           
           async function loadPosts() {
@@ -295,8 +339,8 @@ export default {
               
               document.getElementById('postList').innerHTML = data.posts.map(function(p) {
                 let avatarHtml = '';
-                if (p.author_name === currentUser && currentAvatar) {
-                  avatarHtml = '<img src="' + currentAvatar + '" class="post__avatar" alt="avatar">';
+                if (p.author_avatar) {
+                  avatarHtml = '<img src="' + p.author_avatar + '" class="post__avatar" alt="avatar">';
                 } else {
                   avatarHtml = '<div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block; vertical-align: middle;"></div>';
                 }
@@ -310,7 +354,7 @@ export default {
             const body = document.getElementById('replyBody').value;
             if (!body) return;
             try {
-              await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body, author_name: currentUser || 'guest' }) });
+              await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body, author_name: currentUser ? currentUser.login : 'guest' }) });
               document.getElementById('replyBody').value = '';
               loadPosts();
             } catch(e) { alert('Ошибка при отправке'); }
