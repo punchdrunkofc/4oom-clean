@@ -595,10 +595,13 @@ if (document.getElementById('setNick')) {
       const file = e.target.files[0]; if (!file) return; 
       const r = new FileReader(); 
       r.onload = ev => { 
+        // 1. Сначала вешаем onload
         i.onload = () => {
+          // 2. Показываем контейнер
           c.style.display = 'block'; 
           b.style.display = 'inline-block'; 
           
+          // 3. Ждем 1 кадр для отрисовки
           requestAnimationFrame(() => {
             if (window['crop' + fileId]) {
               window['crop' + fileId].destroy(); 
@@ -618,6 +621,7 @@ if (document.getElementById('setNick')) {
             }
           });
         };
+        // 4. Присваиваем src
         i.src = ev.target.result; 
       }; 
       r.readAsDataURL(file); 
