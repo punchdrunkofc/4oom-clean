@@ -468,6 +468,7 @@ if (document.getElementById('postList')) {
       const r = await fetch('/api/posts?thread=' + tid); 
       if (!r.ok) { if (r.status === 404) { alert('Deleted'); location.href = '/'; return; } }
       const data = await r.json(); 
+      
       const titleEl = document.querySelector('.thread-title-bar');
       if (titleEl) titleEl.textContent = '📄 ' + data.thread.title;
 
@@ -506,35 +507,62 @@ if (document.getElementById('setNick')) {
   let croppers = { avatar: null, banner: null, bg: null };
 
   window.updatePreview = function() {
-    const n = document.getElementById('setNick').value || 'YourNickname', f = document.getElementById('setFont').value;
-    const pn = document.getElementById('previewName'); if(pn) { pn.textContent = n; pn.style.fontFamily = f || 'var(--font-pixel)'; }
-    const pa = document.getElementById('previewAvatar'); if(pa) pa.src = document.getElementById('setAvatar').value || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2230%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?%3C/text%3E%3C/svg%3E';
-    const b = document.getElementById('setBanner').value;
-    const pb = document.getElementById('previewBanner'); if(pb) { pb.style.display = b ? 'block' : 'none'; if (b) pb.src = b; }
-    const bio = document.getElementById('setBio').value;
-    const pbio = document.getElementById('previewBio'); if(pbio) pbio.textContent = bio || 'This user has not written a bio yet.';
-    const pr = document.getElementById('previewRole'); if(pr) pr.innerHTML = getRoleBadge(currentUser ? currentUser.role : 'user');
+    const n = document.getElementById('setNick')?.value || 'YourNickname';
+    const f = document.getElementById('setFont')?.value || '';
+    const pn = document.getElementById('previewName'); 
+    if(pn) { pn.textContent = n; pn.style.fontFamily = f || 'var(--font-pixel)'; }
+    
+    const pa = document.getElementById('previewAvatar'); 
+    if(pa) pa.src = document.getElementById('setAvatar')?.value || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2230%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?%3C/text%3E%3C/svg%3E';
+    
+    const b = document.getElementById('setBanner')?.value;
+    const pb = document.getElementById('previewBanner'); 
+    if(pb) { pb.style.display = b ? 'block' : 'none'; if (b) pb.src = b; }
+    
+    const bio = document.getElementById('setBio')?.value;
+    const pbio = document.getElementById('previewBio'); 
+    if(pbio) pbio.textContent = bio || 'This user has not written a bio yet.';
+    
+    const pr = document.getElementById('previewRole'); 
+    if(pr) pr.innerHTML = getRoleBadge(currentUser ? currentUser.role : 'user');
   }
   
-  ['setNick', 'setBio'].forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', window.updatePreview); });
-  const sf = document.getElementById('setFont'); if(sf) sf.addEventListener('change', window.updatePreview);
+  ['setNick', 'setBio'].forEach(id => { 
+    const el = document.getElementById(id); 
+    if(el) el.addEventListener('input', window.updatePreview); 
+  });
+  const sf = document.getElementById('setFont'); 
+  if(sf) sf.addEventListener('change', window.updatePreview);
 
-  // Инициализация Cropper.js с ПРАВИЛЬНЫМИ ID из HTML
+  // Инициализация Cropper.js
   const setupCropper = (fileId, imgId, containerId, type, aspectRatio) => {
     const fileInput = document.getElementById(fileId);
     const img = document.getElementById(imgId);
     const container = document.getElementById(containerId);
+    
     if (!fileInput || !img || !container) return;
 
     fileInput.addEventListener('change', e => {
       const file = e.target.files[0];
       if (!file) return;
+      
+      if (typeof Cropper === 'undefined') {
+        alert('Ошибка: Библиотека Cropper.js не загружена. Проверьте интернет или отключите блокировщик.');
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = ev => {
         img.src = ev.target.result;
         container.style.display = 'block';
+        
         if (croppers[type]) croppers[type].destroy();
-        croppers[type] = new Cropper(img, { aspectRatio, viewMode: 1, background: false });
+        
+        try {
+          croppers[type] = new Cropper(img, { aspectRatio, viewMode: 1, background: false });
+        } catch (err) {
+          console.error('Cropper init error:', err);
+        }
       };
       reader.readAsDataURL(file);
     });
@@ -544,7 +572,6 @@ if (document.getElementById('setNick')) {
   setupCropper('bannerFile', 'bannerCropperImage', 'bannerCropperContainer', 'banner', 3);
   setupCropper('bgFile', 'bgCropperImage', 'bgCropperContainer', 'bg', NaN);
 
-  // Глобальные функции для кнопок из HTML
   window.applyAvatarCrop = () => {
     if (!croppers.avatar) return;
     const data = croppers.avatar.getCroppedCanvas({ maxWidth: 400, maxHeight: 400 }).toDataURL('image/jpeg', 0.85);
@@ -572,12 +599,10 @@ if (document.getElementById('setNick')) {
     applyCustomBg(data);
   };
 
-  // Показ кнопок "Применить" при выборе файла
   document.getElementById('avatarFile')?.addEventListener('change', () => { const b = document.getElementById('saveAvatarBtn'); if(b) b.style.display = 'inline-block'; });
   document.getElementById('bannerFile')?.addEventListener('change', () => { const b = document.getElementById('saveBannerBtn'); if(b) b.style.display = 'inline-block'; });
   document.getElementById('bgFile')?.addEventListener('change', () => { const b = document.getElementById('saveBgBtn'); if(b) b.style.display = 'inline-block'; });
 
-  // Загрузка текущих данных
   if (currentUser) {
     fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(data => {
       if (!data.user) return;
@@ -594,9 +619,13 @@ if (document.getElementById('setNick')) {
     }).catch(e => console.error(e));
   }
 
-  // СОХРАНЕНИЕ ПРОФИЛЯ
   document.getElementById('saveBtn')?.addEventListener('click', async () => {
-    if (!currentUser) return alert('Not logged in');
+    if (!currentUser) return alert('Please login first');
+    
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
     const payload = {
       user_id: currentUser.id,
       display_name: document.getElementById('setNick').value.trim(),
@@ -606,6 +635,7 @@ if (document.getElementById('setNick')) {
       banner_url: document.getElementById('setBanner').value || null,
       background_url: document.getElementById('setBg').value || null
     };
+    
     try {
       const r = await fetch('/api/profile', {
         method: 'POST',
@@ -615,20 +645,20 @@ if (document.getElementById('setNick')) {
       const res = await r.json();
       if (!r.ok) throw new Error(res.error || 'Save failed');
       
-      // Обновляем локальные данные, чтобы шапка сайта сразу подхватила изменения
       currentUser.login = payload.display_name;
       currentUser.font = payload.font_family;
       currentUser.avatar = payload.avatar_url;
       localStorage.setItem('4oom_user', JSON.stringify(currentUser));
       
-      alert('Profile saved!');
+      alert('Profile saved successfully!');
       location.href = '/profile.html?user=' + encodeURIComponent(payload.display_name);
     } catch (err) {
       alert('Error saving: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = 'SAVE';
     }
   });
 
-  // ОТМЕНА
   document.getElementById('cancelBtn')?.addEventListener('click', () => {
     location.href = '/';
   });
