@@ -602,7 +602,6 @@ if (document.getElementById('setNick')) {
           b.style.display = 'inline-block'; 
           
           // 2. Даем браузеру 50мс на пересчет размеров
-          console.warn("пенис");
           setTimeout(() => {
             if (window['crop' + fileId]) {
               window['crop' + fileId].destroy(); 
@@ -621,7 +620,7 @@ if (document.getElementById('setNick')) {
             } else {
               console.warn('Cropper.js is not loaded.');
             }
-          }, 50);
+          }, 150);
         };
         
         i.src = ev.target.result; 
