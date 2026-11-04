@@ -60,9 +60,9 @@ export default {
       if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
 
       try {
-        if (!env.DB) return new Response(JSON.stringify({ error: 'Нет базы. Привяжи D1 в настройках!' }), { status: 500, headers: cors });
+        if (!env.DB) return new Response(JSON.stringify({ error: 'No database. Bind D1 in settings!' }), { status: 500, headers: cors });
 
-        // Профиль (сохранение)
+        // Profile (save)
         if (url.pathname === '/api/profile' && request.method === 'POST') {
           const body = await request.json();
           if (!body.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
@@ -70,7 +70,7 @@ export default {
           return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Треды (получение)
+        // Threads (get)
         if (url.pathname === '/api/threads' && request.method === 'GET') {
           const { results } = await env.DB.prepare(`
             SELECT t.*, u.avatar_url AS author_avatar,
@@ -81,7 +81,7 @@ export default {
           return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Треды (создание)
+        // Threads (create)
         if (url.pathname === '/api/threads' && request.method === 'POST') {
           const body = await request.json();
           const t = await env.DB.prepare(
@@ -93,7 +93,7 @@ export default {
           return new Response(JSON.stringify({ id: t.id }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Посты (получение)
+        // Posts (get)
         if (url.pathname === '/api/posts' && request.method === 'GET') {
           const threadId = url.searchParams.get('thread');
           const thread = await env.DB.prepare(`SELECT * FROM threads WHERE id = ?`).bind(threadId).first();
@@ -105,7 +105,7 @@ export default {
           return new Response(JSON.stringify({ thread, posts: results }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Посты (создание)
+        // Posts (create)
         if (url.pathname === '/api/posts' && request.method === 'POST') {
           const body = await request.json();
           await env.DB.prepare(`INSERT INTO posts (thread_id, author_name, body, image_url) VALUES (?, ?, ?, ?)`).bind(body.thread_id, body.author_name || 'guest', body.body, body.image_url || null).run();
@@ -163,37 +163,37 @@ export default {
       .settings-form input { width: 100%; padding: 4px; margin-bottom: 12px; border: 2px solid; border-color: #808080 #fff #fff #808080; }
     `;
 
-    // Главная страница
+    // Home page
     if (url.pathname === '/' || url.pathname === '/index.html') {
-      return new Response(`<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>4OOM</title><style>${commonCSS}</style></head><body>
+      return new Response(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>4OOM</title><style>${commonCSS}</style></head><body>
         <header class="header window">
           <div class="window__bar"><span>▣ 4OOM.exe</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/settings'">⚙</button></div></div>
-          <div class="header__body"><div class="header__center" style="text-align: center; flex: 1;"><h1 class="logo">4OOM</h1><p class="tagline">the room that never closed</p><marquee class="marquee" scrollamount="4">★ добро пожаловать в 4OOM ★</marquee></div></div>
-          <nav class="nav"><a href="/" class="nav__link" style="font-weight: bold;">главная</a><a href="?section=general" class="nav__link">general</a></nav>
+          <div class="header__body"><div class="header__center" style="text-align: center; flex: 1;"><h1 class="logo">4OOM</h1><p class="tagline">the room that never closed</p><marquee class="marquee" scrollamount="4">★ welcome to 4OOM ★ be nice ★ no spam ★ have fun ★</marquee></div></div>
+          <nav class="nav"><a href="/" class="nav__link" style="font-weight: bold;">home</a><a href="?section=general" class="nav__link">general</a></nav>
         </header>
         <main class="layout">
           <section class="window threads">
             <div class="window__bar"><span>📁 threads/</span></div>
             <div class="toolbar">
-              <button class="neon-btn" onclick="document.getElementById('createForm').style.display='block'">+ НОВЫЙ ТРЕД</button>
+              <button class="neon-btn" onclick="document.getElementById('createForm').style.display='block'">+ NEW THREAD</button>
             </div>
-            <ul class="thread-list" id="threadList"><li class="thread"><a href="#"><span class="thread__title">Загрузка...</span></a></li></ul>
+            <ul class="thread-list" id="threadList"><li class="thread"><a href="#"><span class="thread__title">Loading...</span></a></li></ul>
             <div id="createForm" style="display:none; padding: 12px; background: #e0e0e0; border-top: 1px solid #808080;">
-              <h3 style="margin-bottom: 8px;">Создать тред</h3>
-              <input type="text" id="newTitle" placeholder="Заголовок" style="width: 100%; margin-bottom: 8px; padding: 4px;">
-              <textarea id="newBody" placeholder="Текст поста" style="width: 100%; height: 80px; margin-bottom: 8px; padding: 4px;"></textarea>
-              <input type="text" id="newImage" placeholder="Ссылка на картинку (необязательно)" style="width: 100%; margin-bottom: 8px; padding: 4px;">
-              <button class="neon-btn" onclick="submitThread()">Создать</button>
-              <button class="neon-btn" onclick="document.getElementById('createForm').style.display='none'">Отмена</button>
+              <h3 style="margin-bottom: 8px;">Create Thread</h3>
+              <input type="text" id="newTitle" placeholder="Title" style="width: 100%; margin-bottom: 8px; padding: 4px;">
+              <textarea id="newBody" placeholder="Post text" style="width: 100%; height: 80px; margin-bottom: 8px; padding: 4px;"></textarea>
+              <input type="text" id="newImage" placeholder="Image URL (optional)" style="width: 100%; margin-bottom: 8px; padding: 4px;">
+              <button class="neon-btn" onclick="submitThread()">Create</button>
+              <button class="neon-btn" onclick="document.getElementById('createForm').style.display='none'">Cancel</button>
             </div>
           </section>
           <aside class="window profile">
-            <div class="window__bar"><span>👤 профиль</span></div>
+            <div class="window__bar"><span>👤 profile</span></div>
             <div class="profile__body" id="profileBox">
               <div class="avatar">?</div>
               <p class="profile__name" id="profileName">guest_4oom</p>
               <p class="profile__status">online · lurker</p>
-              <button class="neon-btn" onclick="location.href='/api/auth/login'">войти через GitHub</button>
+              <button class="neon-btn" onclick="location.href='/api/auth/login'">login with GitHub</button>
             </div>
           </aside>
         </main>
@@ -211,8 +211,8 @@ export default {
               <img src="\${currentUser.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect width=%2280%22 height=%2280%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" class="avatar" alt="avatar">
               <p class="profile__name">\${escapeHtml(currentUser.login)}</p>
               <p class="profile__status">online · github user</p>
-              <button class="neon-btn" onclick="location.href='/settings'">настройки</button>
-              <button class="neon-btn" onclick="localStorage.clear();location.reload()">выйти</button>
+              <button class="neon-btn" onclick="location.href='/settings'">settings</button>
+              <button class="neon-btn" onclick="localStorage.clear();location.reload()">logout</button>
             \`;
           }
 
@@ -221,54 +221,54 @@ export default {
             try {
               const r = await fetch('/api/threads');
               const threads = await r.json();
-              if (!threads || threads.length === 0) { list.innerHTML = '<li class="thread"><a href="#"><span class="thread__title">Пока пусто — создай первый тред!</span></a></li>'; return; }
+              if (!threads || threads.length === 0) { list.innerHTML = '<li class="thread"><a href="#"><span class="thread__title">Nothing here yet — create the first thread!</span></a></li>'; return; }
               list.innerHTML = threads.map(function(t) {
-                return '<li class="thread"><a href="/thread?id=' + t.id + '"><span class="thread__id">#' + String(t.id).padStart(3, '0') + '</span><span class="thread__title">' + escapeHtml(t.title) + '</span><span class="thread__meta">' + t.reply_count + ' ответов</span></a></li>';
+                return '<li class="thread"><a href="/thread?id=' + t.id + '"><span class="thread__id">#' + String(t.id).padStart(3, '0') + '</span><span class="thread__title">' + escapeHtml(t.title) + '</span><span class="thread__meta">' + t.reply_count + ' replies</span></a></li>';
               }).join('');
-            } catch(e) { list.innerHTML = '<li>Ошибка загрузки</li>'; }
+            } catch(e) { list.innerHTML = '<li>Load error</li>'; }
           }
           async function submitThread() {
             const title = document.getElementById('newTitle').value;
             const body = document.getElementById('newBody').value;
             const image_url = document.getElementById('newImage').value;
-            if (!title || !body) return alert('Заполни заголовок и текст');
+            if (!title || !body) return alert('Fill in title and text');
             try {
               const res = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, image_url, section_slug: 'general', author_name: currentUser ? currentUser.login : 'guest' }) });
               if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.error || 'Ошибка сервера');
+                throw new Error(err.error || 'Server error');
               }
               document.getElementById('createForm').style.display = 'none';
               document.getElementById('newTitle').value = '';
               document.getElementById('newBody').value = '';
               document.getElementById('newImage').value = '';
               loadThreads();
-            } catch(e) { alert('Ошибка при создании треда: ' + e.message); }
+            } catch(e) { alert('Error creating thread: ' + e.message); }
           }
           loadThreads();
         </script>
       </body></html>`, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
 
-    // Страница настроек
+    // Settings page
     if (url.pathname === '/settings') {
-      return new Response(`<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>4OOM — Настройки</title><style>${commonCSS}</style></head><body>
+      return new Response(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>4OOM — Settings</title><style>${commonCSS}</style></head><body>
         <header class="header window">
-          <div class="window__bar"><span>▣ 4OOM.exe — Настройки</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/'">×</button></div></div>
-          <nav class="nav"><a href="/" class="nav__link">← назад на главную</a></nav>
+          <div class="window__bar"><span>▣ 4OOM.exe — Settings</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/'">×</button></div></div>
+          <nav class="nav"><a href="/" class="nav__link">← back to home</a></nav>
         </header>
         <main class="layout layout--single">
           <section class="window">
-            <div class="window__bar"><span>🎨 Редактор аккаунта</span></div>
+            <div class="window__bar"><span>🎨 Account Editor</span></div>
             <div class="settings-form">
-              <label>Ваш никнейм:</label>
-              <input type="text" id="setNick" placeholder="Введите ник">
+              <label>Your nickname:</label>
+              <input type="text" id="setNick" placeholder="Enter nickname">
               
-              <label>Ссылка на аватарку (URL):</label>
+              <label>Avatar URL:</label>
               <input type="text" id="setAvatar" placeholder="https://example.com/avatar.gif">
               
-              <button class="neon-btn" onclick="saveSettings()">Сохранить</button>
-              <button class="neon-btn" onclick="location.href='/'">Отмена</button>
+              <button class="neon-btn" onclick="saveSettings()">Save</button>
+              <button class="neon-btn" onclick="location.href='/'">Cancel</button>
             </div>
           </section>
         </main>
@@ -283,11 +283,11 @@ export default {
           }
 
           async function saveSettings() {
-            if (!currentUser) return alert('Сначала войдите через GitHub!');
+            if (!currentUser) return alert('Please login with GitHub first!');
             const nick = document.getElementById('setNick').value.trim();
             const avatar = document.getElementById('setAvatar').value.trim();
             
-            if (!nick) return alert('Никнейм не может быть пустым');
+            if (!nick) return alert('Nickname cannot be empty');
             
             try {
               const res = await fetch('/api/profile', {
@@ -295,36 +295,36 @@ export default {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user_id: currentUser.id, display_name: nick, avatar_url: avatar })
               });
-              if (!res.ok) throw new Error('Ошибка сохранения');
+              if (!res.ok) throw new Error('Save error');
               
               currentUser.login = nick;
               currentUser.avatar = avatar;
               localStorage.setItem('4oom_user', JSON.stringify(currentUser));
               
-              alert('Настройки сохранены!');
+              alert('Settings saved!');
               location.href = '/';
-            } catch(e) { alert('Ошибка: ' + e.message); }
+            } catch(e) { alert('Error: ' + e.message); }
           }
         </script>
       </body></html>`, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
 
-    // Страница треда
+    // Thread page
     if (url.pathname === '/thread') {
-      return new Response(`<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>4OOM — Тред</title><style>${commonCSS}</style></head><body>
+      return new Response(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>4OOM — Thread</title><style>${commonCSS}</style></head><body>
         <header class="header window">
           <div class="window__bar"><span>▣ 4OOM.exe</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/settings'">⚙</button></div></div>
-          <nav class="nav"><a href="/" class="nav__link">← назад к тредам</a></nav>
+          <nav class="nav"><a href="/" class="nav__link">← back to threads</a></nav>
         </header>
         <main class="layout layout--single">
           <section class="window">
-            <div class="window__bar"><span>📄 Загрузка...</span></div>
+            <div class="window__bar"><span>📄 Loading...</span></div>
             <div id="postList"></div>
-            <div class="window__bar"><span>✍ ответить</span></div>
+            <div class="window__bar"><span>✍ reply</span></div>
             <form class="reply-form" id="replyForm">
-              <textarea class="reply-form__textarea" id="replyBody" placeholder="напиши что-нибудь..." rows="4"></textarea>
-              <input type="text" class="reply-form__input" id="replyImage" placeholder="Ссылка на картинку (необязательно)">
-              <div class="reply-form__actions"><button type="submit" class="neon-btn">отправить</button></div>
+              <textarea class="reply-form__textarea" id="replyBody" placeholder="type something..." rows="4"></textarea>
+              <input type="text" class="reply-form__input" id="replyImage" placeholder="Image URL (optional)">
+              <div class="reply-form__actions"><button type="submit" class="neon-btn">send</button></div>
             </form>
           </section>
         </main>
@@ -353,7 +353,7 @@ export default {
                 let imgHtml = p.image_url ? '<img src="' + p.image_url + '" class="post__img" alt="image" onerror="this.style.display=\\'none\\'">' : '';
                 return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + escapeHtml(p.author_name) + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + imgHtml + '</div></article>';
               }).join('');
-            } catch(e) { document.getElementById('postList').innerHTML = 'Ошибка загрузки треда'; }
+            } catch(e) { document.getElementById('postList').innerHTML = 'Error loading thread'; }
           }
           
           document.getElementById('replyForm').addEventListener('submit', async e => {
@@ -366,7 +366,7 @@ export default {
               document.getElementById('replyBody').value = '';
               document.getElementById('replyImage').value = '';
               loadPosts();
-            } catch(e) { alert('Ошибка при отправке'); }
+            } catch(e) { alert('Error sending'); }
           });
           loadPosts();
         </script>
