@@ -13,13 +13,25 @@ export class ChatRoom extends DurableObject {
   async fetch(request) {
     const upgradeHeader = request.headers.get('Upgrade');
     if (!upgradeHeader || upgradeHeader !== 'websocket') return new Response('Expected WebSocket', { status: 426 });
+    
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
+    
     const nick = new URL(request.url).searchParams.get('nick') || 'guest';
+
+    // УДАЛЯЕМ СТАРОЕ СОЕДИНЕНИЕ С ТАКИМ ЖЕ НИКОМ
+    for (let [ws, session] of this.sessions.entries()) {
+      if (session.nick === nick) {
+        try { ws.close(1000, 'New session opened'); } catch (e) {}
+        this.sessions.delete(ws);
+      }
+    }
+
     server.serializeAttachment({ nick });
     this.sessions.set(server, { nick });
     this.broadcastOnline();
+    
     return new Response(null, { status: 101, webSocket: client });
   }
 
