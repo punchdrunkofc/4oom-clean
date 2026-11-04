@@ -49,7 +49,6 @@ function formatName(name, role, font) {
 function applyCustomBg(url) {
   const video = document.getElementById('bgVideo');
   if (!url) {
-    // Если фона нет, просто скрываем видео и убираем inline-стили, чтобы вернуть звездный фон из CSS
     if (video) { video.pause(); video.style.display = 'none'; video.src = ''; }
     document.body.style.backgroundImage = '';
     document.body.style.backgroundColor = '';
@@ -69,9 +68,7 @@ function applyCustomBg(url) {
   }
 }
 
-function resetVideoBg() { 
-  applyCustomBg(null); 
-}
+function resetVideoBg() { applyCustomBg(null); }
 
 // ================= 1. ПРОФИЛЬ =================
 if (document.getElementById('userName')) {
@@ -133,7 +130,7 @@ if (document.getElementById('threadList')) {
     const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
     if (currentUser) {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}`);
+      const ws = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
       ws.onopen = () => { chatMsgs.innerHTML = ''; };
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -176,7 +173,7 @@ if (document.getElementById('threadList')) {
     
     if (currentUser) {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsBug = new WebSocket(`${protocol}//${window.location.host}/api/bugs/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}`);
+      const wsBug = new WebSocket(`${protocol}//${window.location.host}/api/bugs/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
       
       wsBug.onopen = () => { bugMsgs.innerHTML = ''; };
       
@@ -602,13 +599,14 @@ if (document.getElementById('setNick')) {
         c.style.display = 'block'; 
         b.style.display = 'inline-block'; 
         
-        if (window['crop' + fileId]) window['crop' + fileId].destroy(); 
-        
-        if (typeof Cropper !== 'undefined') {
-          window['crop' + fileId] = new Cropper(i, { aspectRatio: ratio, viewMode: 1 }); 
-        } else {
-          console.warn('Cropper.js is not loaded, cropping is unavailable.');
-        }
+        setTimeout(() => {
+          if (window['crop' + fileId]) window['crop' + fileId].destroy(); 
+          if (typeof Cropper !== 'undefined') {
+            window['crop' + fileId] = new Cropper(i, { aspectRatio: ratio, viewMode: 1, background: false }); 
+          } else {
+            console.warn('Cropper.js is not loaded, cropping is unavailable.');
+          }
+        }, 100);
       }; 
       r.readAsDataURL(file); 
     });
