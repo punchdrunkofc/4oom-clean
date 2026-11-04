@@ -66,6 +66,12 @@ export default {
     try {
       if (!env.DB) return new Response(JSON.stringify({ error: 'No database. Bind D1 in settings!' }), { status: 500, headers: cors });
 
+      // ПОЛУЧЕНИЕ СПИСКА ВСЕХ РАЗДЕЛОВ
+      if (url.pathname === '/api/sections' && request.method === 'GET') {
+        const { results } = await env.DB.prepare(`SELECT DISTINCT section_slug FROM threads ORDER BY section_slug ASC`).all();
+        return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+
       if (url.pathname === '/api/profile' && request.method === 'POST') {
         const body = await request.json();
         if (!body.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
@@ -100,7 +106,7 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // Треды (с фильтрацией по разделу или автору)
+      // Треды
       if (url.pathname === '/api/threads' && request.method === 'GET') {
         const section = url.searchParams.get('section');
         const my = url.searchParams.get('my');
@@ -130,9 +136,12 @@ export default {
 
       if (url.pathname === '/api/threads' && request.method === 'POST') {
         const body = await request.json();
+        // Приводим раздел к нижнему регистру и убираем пробелы
+        const section_slug = (body.section_slug || 'general').toLowerCase().replace(/\s+/g, '-'); 
+        
         const t = await env.DB.prepare(
           `INSERT INTO threads (section_slug, title, author_name) VALUES (?, ?, ?) RETURNING id`
-        ).bind(body.section_slug || 'general', body.title, body.author_name || 'guest').first();
+        ).bind(section_slug, body.title, body.author_name || 'guest').first();
         await env.DB.prepare(
           `INSERT INTO posts (thread_id, author_name, body, image_url, music_url) VALUES (?, ?, ?, ?, ?)`
         ).bind(t.id, body.author_name || 'guest', body.body, body.image_url || null, body.music_url || null).run();
