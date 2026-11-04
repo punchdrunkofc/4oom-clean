@@ -31,7 +31,6 @@ export default {
         });
         const user = await userRes.json();
 
-        // Ищем или создаем пользователя в БД
         let dbUser = await env.DB.prepare(`SELECT * FROM users WHERE github_id = ?`).bind(user.id).first();
         if (!dbUser) {
           await env.DB.prepare(
@@ -71,7 +70,7 @@ export default {
           return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Треды
+        // Треды (получение)
         if (url.pathname === '/api/threads' && request.method === 'GET') {
           const { results } = await env.DB.prepare(`
             SELECT t.*, u.avatar_url AS author_avatar,
@@ -82,18 +81,19 @@ export default {
           return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
+        // Треды (создание)
         if (url.pathname === '/api/threads' && request.method === 'POST') {
           const body = await request.json();
           const t = await env.DB.prepare(
             `INSERT INTO threads (section_slug, title, author_name) VALUES (?, ?, ?) RETURNING id`
           ).bind(body.section_slug || 'general', body.title, body.author_name || 'guest').first();
           await env.DB.prepare(
-            `INSERT INTO posts (thread_id, author_name, body) VALUES (?, ?, ?)`
-          ).bind(t.id, body.author_name || 'guest', body.body).run();
+            `INSERT INTO posts (thread_id, author_name, body, image_url) VALUES (?, ?, ?, ?)`
+          ).bind(t.id, body.author_name || 'guest', body.body, body.image_url || null).run();
           return new Response(JSON.stringify({ id: t.id }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Посты
+        // Посты (получение)
         if (url.pathname === '/api/posts' && request.method === 'GET') {
           const threadId = url.searchParams.get('thread');
           const thread = await env.DB.prepare(`SELECT * FROM threads WHERE id = ?`).bind(threadId).first();
@@ -105,9 +105,10 @@ export default {
           return new Response(JSON.stringify({ thread, posts: results }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
+        // Посты (создание)
         if (url.pathname === '/api/posts' && request.method === 'POST') {
           const body = await request.json();
-          await env.DB.prepare(`INSERT INTO posts (thread_id, author_name, body) VALUES (?, ?, ?)`).bind(body.thread_id, body.author_name || 'guest', body.body).run();
+          await env.DB.prepare(`INSERT INTO posts (thread_id, author_name, body, image_url) VALUES (?, ?, ?, ?)`).bind(body.thread_id, body.author_name || 'guest', body.body, body.image_url || null).run();
           await env.DB.prepare(`UPDATE threads SET updated_at = unixepoch() WHERE id = ?`).bind(body.thread_id).run();
           return new Response(JSON.stringify({ ok: true }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
         }
@@ -153,8 +154,10 @@ export default {
       .post__author { color: var(--win-title); font-weight: bold; display: flex; align-items: center; gap: 6px; }
       .post__avatar { width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover; }
       .post__body { font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.4; margin-top: 4px; }
+      .post__img { max-width: 100%; max-height: 400px; margin-top: 8px; border: 2px solid #808080; display: block; }
       .reply-form { padding: 8px 12px; }
-      .reply-form__textarea { width: 100%; font-family: 'Times New Roman', serif; font-size: 13px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080; background: #fff; }
+      .reply-form__textarea { width: 100%; font-family: 'Times New Roman', serif; font-size: 13px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080; background: #fff; margin-bottom: 4px; }
+      .reply-form__input { width: 100%; padding: 4px; margin-bottom: 8px; border: 2px solid; border-color: #808080 #fff #fff #808080; }
       .settings-form { padding: 12px; }
       .settings-form label { display: block; margin-bottom: 4px; font-weight: bold; }
       .settings-form input { width: 100%; padding: 4px; margin-bottom: 12px; border: 2px solid; border-color: #808080 #fff #fff #808080; }
@@ -173,13 +176,13 @@ export default {
             <div class="window__bar"><span>📁 threads/</span></div>
             <div class="toolbar">
               <button class="neon-btn" onclick="document.getElementById('createForm').style.display='block'">+ НОВЫЙ ТРЕД</button>
-              <span class="toolbar__info">сейчас играет: <em>Sunny Day Real Estate — Diary</em></span>
             </div>
             <ul class="thread-list" id="threadList"><li class="thread"><a href="#"><span class="thread__title">Загрузка...</span></a></li></ul>
             <div id="createForm" style="display:none; padding: 12px; background: #e0e0e0; border-top: 1px solid #808080;">
               <h3 style="margin-bottom: 8px;">Создать тред</h3>
               <input type="text" id="newTitle" placeholder="Заголовок" style="width: 100%; margin-bottom: 8px; padding: 4px;">
               <textarea id="newBody" placeholder="Текст поста" style="width: 100%; height: 80px; margin-bottom: 8px; padding: 4px;"></textarea>
+              <input type="text" id="newImage" placeholder="Ссылка на картинку (необязательно)" style="width: 100%; margin-bottom: 8px; padding: 4px;">
               <button class="neon-btn" onclick="submitThread()">Создать</button>
               <button class="neon-btn" onclick="document.getElementById('createForm').style.display='none'">Отмена</button>
             </div>
@@ -227,9 +230,10 @@ export default {
           async function submitThread() {
             const title = document.getElementById('newTitle').value;
             const body = document.getElementById('newBody').value;
-            if (!title || !body) return alert('Заполни все поля');
+            const image_url = document.getElementById('newImage').value;
+            if (!title || !body) return alert('Заполни заголовок и текст');
             try {
-              const res = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, section_slug: 'general', author_name: currentUser ? currentUser.login : 'guest' }) });
+              const res = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, image_url, section_slug: 'general', author_name: currentUser ? currentUser.login : 'guest' }) });
               if (!res.ok) {
                 const err = await res.json();
                 throw new Error(err.error || 'Ошибка сервера');
@@ -237,6 +241,7 @@ export default {
               document.getElementById('createForm').style.display = 'none';
               document.getElementById('newTitle').value = '';
               document.getElementById('newBody').value = '';
+              document.getElementById('newImage').value = '';
               loadThreads();
             } catch(e) { alert('Ошибка при создании треда: ' + e.message); }
           }
@@ -318,6 +323,7 @@ export default {
             <div class="window__bar"><span>✍ ответить</span></div>
             <form class="reply-form" id="replyForm">
               <textarea class="reply-form__textarea" id="replyBody" placeholder="напиши что-нибудь..." rows="4"></textarea>
+              <input type="text" class="reply-form__input" id="replyImage" placeholder="Ссылка на картинку (необязательно)">
               <div class="reply-form__actions"><button type="submit" class="neon-btn">отправить</button></div>
             </form>
           </section>
@@ -344,7 +350,8 @@ export default {
                 } else {
                   avatarHtml = '<div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block; vertical-align: middle;"></div>';
                 }
-                return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + escapeHtml(p.author_name) + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + '</div></article>';
+                let imgHtml = p.image_url ? '<img src="' + p.image_url + '" class="post__img" alt="image" onerror="this.style.display=\\'none\\'">' : '';
+                return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + escapeHtml(p.author_name) + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + imgHtml + '</div></article>';
               }).join('');
             } catch(e) { document.getElementById('postList').innerHTML = 'Ошибка загрузки треда'; }
           }
@@ -352,10 +359,12 @@ export default {
           document.getElementById('replyForm').addEventListener('submit', async e => {
             e.preventDefault();
             const body = document.getElementById('replyBody').value;
+            const image_url = document.getElementById('replyImage').value;
             if (!body) return;
             try {
-              await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body, author_name: currentUser ? currentUser.login : 'guest' }) });
+              await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body, image_url, author_name: currentUser ? currentUser.login : 'guest' }) });
               document.getElementById('replyBody').value = '';
+              document.getElementById('replyImage').value = '';
               loadPosts();
             } catch(e) { alert('Ошибка при отправке'); }
           });
