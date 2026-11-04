@@ -56,7 +56,6 @@ if (document.getElementById('threadList')) {
       list.innerHTML = threads.map(function(t) {
         const canDelete = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || t.author_name === currentUser.login);
         const deleteBtn = canDelete ? `<button class="delete-btn" onclick="event.preventDefault(); deleteThread(${t.first_post_id})">delete</button>` : '';
-        // ИСПРАВЛЕНИЕ: передаем t.author_role вместо 'user'
         return `<li class="thread">
           <a href="/thread.html?id=${t.id}">
             <span class="thread__title">${escapeHtml(t.title)}</span>
@@ -72,12 +71,13 @@ if (document.getElementById('threadList')) {
     const title = document.getElementById('newTitle').value;
     const body = document.getElementById('newBody').value;
     const image_url = document.getElementById('newImage').value;
+    const music_url = document.getElementById('newMusic').value;
     if (!title || !body) return alert('Fill in title and text');
     try {
-      const res = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, image_url, section_slug: 'general', author_name: currentUser ? currentUser.login : 'guest' }) });
+      const res = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, image_url, music_url, section_slug: 'general', author_name: currentUser ? currentUser.login : 'guest' }) });
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Server error'); }
       document.getElementById('createForm').style.display = 'none';
-      document.getElementById('newTitle').value = ''; document.getElementById('newBody').value = ''; document.getElementById('newImage').value = '';
+      document.getElementById('newTitle').value = ''; document.getElementById('newBody').value = ''; document.getElementById('newImage').value = ''; document.getElementById('newMusic').value = '';
       loadThreads();
     } catch(e) { alert('Error creating thread: ' + e.message); }
   };
@@ -135,7 +135,8 @@ if (document.getElementById('postList')) {
         const canDelete = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || p.author_name === currentUser.login);
         const deleteBtn = canDelete ? `<button class="delete-btn" onclick="deletePost(${p.id})">delete</button>` : '';
         let imgHtml = p.image_url ? '<img src="' + p.image_url + '" class="post__img" alt="image" onerror="this.style.display=\'none\'">' : '';
-        return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + formatName(p.author_name, p.author_role) + getRoleBadge(p.author_role) + deleteBtn + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + imgHtml + '</div></article>';
+        let audioHtml = p.music_url ? `<audio controls class="post__audio" src="${p.music_url}"></audio>` : '';
+        return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + formatName(p.author_name, p.author_role) + getRoleBadge(p.author_role) + deleteBtn + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + imgHtml + audioHtml + '</div></article>';
       }).join('');
     } catch(e) { document.getElementById('postList').innerHTML = 'Error loading thread'; }
   };
@@ -144,10 +145,11 @@ if (document.getElementById('postList')) {
     e.preventDefault();
     const body = document.getElementById('replyBody').value;
     const image_url = document.getElementById('replyImage').value;
+    const music_url = document.getElementById('replyMusic').value;
     if (!body) return;
     try {
-      await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body, image_url, author_name: currentUser ? currentUser.login : 'guest' }) });
-      document.getElementById('replyBody').value = ''; document.getElementById('replyImage').value = '';
+      await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body, image_url, music_url, author_name: currentUser ? currentUser.login : 'guest' }) });
+      document.getElementById('replyBody').value = ''; document.getElementById('replyImage').value = ''; document.getElementById('replyMusic').value = '';
       loadPosts();
     } catch(e) { alert('Error sending'); }
   });
