@@ -77,20 +77,30 @@ export default {
         const login = url.searchParams.get('login');
         if (!login) return new Response(JSON.stringify({ error: 'No login provided' }), { status: 400, headers: cors });
         
+        // Ищем по display_name (ник, который видит пользователь)
         const user = await env.DB.prepare(`
           SELECT id, display_name, avatar_url, banner_url, banner_position, bio, role, font_family, background_url 
           FROM users WHERE display_name = ?
         `).bind(login).first();
         
-        if (!user) return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: cors });
+        // Если не нашли по display_name, пробуем найти по github_login
+        let finalUser = user;
+        if (!finalUser) {
+           finalUser = await env.DB.prepare(`
+             SELECT id, display_name, avatar_url, banner_url, banner_position, bio, role, font_family, background_url 
+             FROM users WHERE github_login = ?
+           `).bind(login).first();
+        }
+
+        if (!finalUser) return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: cors });
 
         const { results: threads } = await env.DB.prepare(`
           SELECT t.*, 
           (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count
           FROM threads t WHERE t.author_name = ? ORDER BY t.updated_at DESC
-        `).bind(login).all();
+        `).bind(finalUser.display_name).all();
 
-        return new Response(JSON.stringify({ user, threads }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ user: finalUser, threads }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
       // ОБНОВЛЕНИЕ ПРОФИЛЯ (настройки)
