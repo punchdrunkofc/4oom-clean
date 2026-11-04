@@ -31,8 +31,12 @@ export default {
         });
         const user = await userRes.json();
 
+        // Сохраняем и ник, и ссылку на аватар
+        const userJson = JSON.stringify({ login: user.login, avatar_url: user.avatar_url });
+
         return new Response(`<!DOCTYPE html><html><body><script>
           localStorage.setItem('4oom_user', '${user.login.replace(/'/g, "\\'")}');
+          localStorage.setItem('4oom_avatar', '${user.avatar_url}');
           location.href = '/';
         </script></body></html>`, { headers: { 'Content-Type': 'text/html' } });
       } catch (e) {
@@ -116,14 +120,15 @@ export default {
       .neon-btn { display: inline-block; margin: 4px; padding: 6px 14px; background: var(--win-bg); color: #000; border: 2px solid; border-color: #fff #808080 #808080 #fff; font-family: var(--font-pixel); font-size: 12px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
       .neon-btn:hover { background: #d0d0d0; }
       .profile__body { padding: 12px; text-align: center; }
-      .avatar { width: 80px; height: 80px; margin: 0 auto 8px; background: #fff; border: 2px solid #808080; display: grid; place-items: center; color: #808080; font-size: 40px; font-family: 'Times New Roman', serif; }
+      .avatar { width: 80px; height: 80px; margin: 0 auto 8px; background: #fff; border: 2px solid #808080; display: grid; place-items: center; color: #808080; font-size: 40px; font-family: 'Times New Roman', serif; object-fit: cover; }
       .profile__name { color: var(--win-title); font-weight: bold; }
       .profile__status { font-size: 11px; color: #444; }
       .stats { padding: 8px 12px; font-size: 12px; }
       .footer { max-width: 1000px; margin: 16px auto 0; padding: 8px; text-align: center; font-size: 11px; color: #888; background: rgba(0,0,0,0.3); border: 1px solid #444; }
       .post { padding: 8px 12px; border-bottom: 1px solid #a0a0a0; }
       .post__head { display: flex; justify-content: space-between; font-size: 11px; color: #444; margin-bottom: 4px; }
-      .post__author { color: var(--win-title); font-weight: bold; }
+      .post__author { color: var(--win-title); font-weight: bold; display: flex; align-items: center; gap: 6px; }
+      .post__avatar { width: 20px; height: 20px; border: 1px solid #808080; object-fit: cover; }
       .post__body { font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.4; }
       .reply-form { padding: 8px 12px; }
       .reply-form__textarea { width: 100%; font-family: 'Times New Roman', serif; font-size: 13px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080; background: #fff; }
@@ -154,7 +159,7 @@ export default {
             </div>
           </section>
           <aside class="window profile">
-            <div class="window__bar"><span>👤 guest</span></div>
+            <div class="window__bar"><span>👤 профиль</span></div>
             <div class="profile__body" id="profileBox">
               <div class="avatar">?</div>
               <p class="profile__name" id="profileName">guest_4oom</p>
@@ -168,13 +173,15 @@ export default {
           function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
           
           const currentUser = localStorage.getItem('4oom_user');
-          if (currentUser) {
+          const currentAvatar = localStorage.getItem('4oom_avatar');
+          
+          if (currentUser && currentAvatar) {
             document.getElementById('profileName').textContent = currentUser;
             document.getElementById('profileBox').innerHTML = \`
-              <div class="avatar" style="background:#000080;color:#fff;">\${currentUser[0].toUpperCase()}</div>
+              <img src="\${currentAvatar}" class="avatar" alt="avatar">
               <p class="profile__name">\${escapeHtml(currentUser)}</p>
               <p class="profile__status">online · github user</p>
-              <button class="neon-btn" onclick="localStorage.removeItem('4oom_user');location.reload()">выйти</button>
+              <button class="neon-btn" onclick="localStorage.clear();location.reload()">выйти</button>
             \`;
           }
 
@@ -230,19 +237,32 @@ export default {
         </main>
         <script>
           function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+          
           const currentUser = localStorage.getItem('4oom_user');
+          const currentAvatar = localStorage.getItem('4oom_avatar');
           const threadId = new URLSearchParams(location.search).get('id');
+          
           async function loadPosts() {
             if (!threadId) { location.href = '/'; return; }
             try {
               const r = await fetch('/api/posts?thread=' + threadId);
               const data = await r.json();
               document.querySelector('.window__bar span').textContent = '📄 #' + threadId + ' — ' + data.thread.title;
+              
+              // Если это наш пост, показываем аватарку (мы будем считать, что если имя совпадает с текущим юзером, то это он)
               document.getElementById('postList').innerHTML = data.posts.map(function(p) {
-                return '<article class="post"><div class="post__head"><span class="post__author">' + escapeHtml(p.author_name) + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + '</div></article>';
+                let avatarHtml = '';
+                if (p.author_name === currentUser && currentAvatar) {
+                  avatarHtml = '<img src="' + currentAvatar + '" class="post__avatar" alt="avatar">';
+                } else {
+                  // Заглушка для остальных пользователей (показываем квадратик)
+                  avatarHtml = '<div style="width:20px; height:20px; background:#ccc; border: 1px solid #808080; display:inline-block; vertical-align: middle; margin-right: 6px;"></div>';
+                }
+                return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + escapeHtml(p.author_name) + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + '</div></article>';
               }).join('');
             } catch(e) { document.getElementById('postList').innerHTML = 'Ошибка загрузки треда'; }
           }
+          
           document.getElementById('replyForm').addEventListener('submit', async e => {
             e.preventDefault();
             const body = document.getElementById('replyBody').value;
