@@ -183,7 +183,7 @@ if (document.getElementById('threadList')) {
         if (data.type === 'history') {
           bugMsgs.innerHTML = '';
           if (!Array.isArray(data.messages) || data.messages.length === 0) { 
-            bugMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">Пока нет репортов.</div>'; 
+            bugMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No reports yet.</div>'; 
           } else {
             data.messages.forEach(m => {
               const div = document.createElement('div'); 
@@ -213,7 +213,7 @@ if (document.getElementById('threadList')) {
         const t = bugInput.value.trim();
         if (!t) return;
         
-        const confirmed = confirm("⚠️ ВНИМАНИЕ!\n\nЭтот чат предназначен ИСКЛЮЧИТЕЛЬНО для сообщений о багах и ошибках.\n\nОн не для общения, флуда или оффтопа. Вы уверены, что хотите отправить это сообщение?");
+        const confirmed = confirm("⚠️ WARNING!\n\nThis chat is EXCLUSIVELY for reporting bugs and errors.\n\nIt is NOT for chatting, flooding, or off-topic discussions. Are you sure you want to send this message?");
         
         if (confirmed && wsBug.readyState === WebSocket.OPEN) { 
           bugInput.value = ''; 
@@ -221,7 +221,7 @@ if (document.getElementById('threadList')) {
         }
       });
     } else {
-      bugMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">Войдите, чтобы отправлять баг-репорты.</div>';
+      bugMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">Login to submit bug reports.</div>';
       bugForm.style.display = 'none';
     }
   }
@@ -313,7 +313,7 @@ if (document.getElementById('threadList')) {
       else if (currentSection) ep = `/api/threads?section=${currentSection}`;
       
       let threads = await (await fetch(ep)).json();
-      if (!Array.isArray(threads)) { list.innerHTML = '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">Ошибка загрузки</span></a></li>'; return; }
+      if (!Array.isArray(threads)) { list.innerHTML = '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">Error loading threads</span></a></li>'; return; }
       if (!threads.length) { list.innerHTML = '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">Nothing here yet...</span></a></li>'; return; }
       if (!currentSection) threads = threads.sort((a, b) => b.reply_count - a.reply_count).slice(0, 5);
       
@@ -521,7 +521,7 @@ if (document.getElementById('postList')) {
     if (!tid) location.href = '/';
     try {
       const r = await fetch('/api/posts?thread=' + tid); 
-      if (!r.ok) { if (r.status === 404) { alert('Deleted'); location.href = '/'; return; } }
+      if (!r.ok) { if (r.status === 404) { alert('Thread deleted'); location.href = '/'; return; } }
       const data = await r.json(); 
       
       const titleEl = document.querySelector('.thread-title-bar');
@@ -533,7 +533,7 @@ if (document.getElementById('postList')) {
         const canDel = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || p.author_name === currentUser.login);
         return `<article class="post"><div class="post__head"><span class="post__author">${av}<a href="${url}" style="text-decoration:none; color:inherit;">${formatName(p.author_name, p.author_role, p.author_font)}</a>${getRoleBadge(p.author_role)}${canDel ? `<button class="delete-btn" onclick="deletePost(${p.id})">delete</button>` : ''}</span><span class="post__time">${new Date(p.created_at * 1000).toLocaleString()}</span></div><div class="post__body">${escapeHtml(p.body)}${p.image_url ? `<img src="${p.image_url}" class="post__img">` : ''}${p.music_url ? `<audio controls class="post__audio" src="${p.music_url}"></audio>` : ''}</div></article>`;
       }).join('');
-    } catch(e) { document.getElementById('postList').innerHTML = 'Error'; }
+    } catch(e) { document.getElementById('postList').innerHTML = 'Error loading posts'; }
   };
   
   document.getElementById('replyForm').addEventListener('submit', async e => {
@@ -604,7 +604,7 @@ if (document.getElementById('setNick')) {
         if (typeof Cropper !== 'undefined') {
           window['crop' + fileId] = new Cropper(i, { aspectRatio: ratio, viewMode: 1 }); 
         } else {
-          console.warn('Cropper.js не загружен, обрезка недоступна.');
+          console.warn('Cropper.js is not loaded, cropping is unavailable.');
         }
       }; 
       r.readAsDataURL(file); 
@@ -658,7 +658,7 @@ if (document.getElementById('setNick')) {
   }
   
   document.getElementById('saveBtn')?.addEventListener('click', async () => {
-    if (!currentUser) return alert('Login first!');
+    if (!currentUser) return alert('Please login first!');
     
     const btn = document.getElementById('saveBtn');
     btn.disabled = true;
@@ -674,7 +674,7 @@ if (document.getElementById('setNick')) {
     if (!n) {
       btn.disabled = false;
       btn.textContent = 'SAVE';
-      return alert('Nickname empty');
+      return alert('Nickname cannot be empty');
     }
 
     try {
@@ -692,7 +692,7 @@ if (document.getElementById('setNick')) {
       currentUser.font = f; 
       localStorage.setItem('4oom_user', JSON.stringify(currentUser)); 
       
-      alert('Profile saved!');
+      alert('Profile saved successfully!');
       location.href = '/profile.html?user=' + encodeURIComponent(n);
     } catch(e) { 
       alert('Error saving: ' + e.message); 
@@ -708,7 +708,7 @@ if (document.getElementById('setNick')) {
 
 // ================= 7. ГЛОБАЛЬНЫЕ ФУНКЦИИ ДРУЗЕЙ =================
 window.sendFriendRequest = async function(targetId) {
-  if (!currentUser) return alert('Login first');
+  if (!currentUser) return alert('Please login first');
   try {
     const r = await fetch('/api/friends/request', {
       method: 'POST',
