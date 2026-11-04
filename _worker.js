@@ -138,7 +138,8 @@ export default {
         let user = await env.DB.prepare(`SELECT * FROM users WHERE display_name = ?`).bind(login).first();
         if (!user) user = await env.DB.prepare(`SELECT * FROM users WHERE github_login = ?`).bind(login).first();
         if (!user) return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: cors });
-        const { results: threads } = await env.DB.prepare(`SELECT t.*, (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count FROM threads t WHERE t.author_name = ? ORDER BY t.updated_at DESC`).bind(user.display_name).all();
+        // Ищем треды по ID, а не по нику
+        const { results: threads } = await env.DB.prepare(`SELECT t.*, (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count FROM threads t WHERE t.author_id = ? ORDER BY t.updated_at DESC`).bind(user.id).all();
         return new Response(JSON.stringify({ user, threads }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
@@ -222,7 +223,12 @@ export default {
         const b = await request.json();
         const post = await env.DB.prepare(`SELECT * FROM posts WHERE id = ?`).bind(b.post_id).first();
         if (!post) return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: cors });
-        if (!['creator', 'moderator', 'editor'].includes(b.user_role) && post.author_name !== b.user_login) return new Response(JSON.stringify({ error: 'No permission' }), { status: 403, headers: cors });
+        // Проверка прав по роли или по автору (сравниваем логины)
+        const authorCheck = await env.DB.prepare(`SELECT display_name FROM users WHERE id = ?`).bind(post.author_id).first();
+        if (!['creator', 'moderator', 'editor'].includes(b.user_role) && (!authorCheck || authorCheck.display_name !== b.user_login)) {
+          return new Response(JSON.stringify({ error: 'No permission' }), { status: 403, headers: cors });
+        }
+        
         const first = await env.DB.prepare(`SELECT id FROM posts WHERE thread_id = ? ORDER BY created_at ASC LIMIT 1`).bind(post.thread_id).first();
         if (first && first.id === post.id) await env.DB.prepare(`DELETE FROM threads WHERE id = ?`).bind(post.thread_id).run();
         else await env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(b.post_id).run();
@@ -233,16 +239,42 @@ export default {
       if (url.pathname === '/api/threads' && request.method === 'GET') {
         const section = url.searchParams.get('section');
         const my = url.searchParams.get('my');
-        let q = `SELECT t.*, u.role AS author_role, u.font_family AS author_font, (SELECT id FROM posts p WHERE p.thread_id = t.id ORDER BY p.created_at ASC LIMIT 1) AS first_post_id, (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count FROM threads t LEFT JOIN users u ON t.author_name = u.display_name`;
-        if (section) { q += ` WHERE t.section_slug = ? ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).bind(section).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
-        else if (my) { q += ` WHERE t.author_name = ? ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).bind(my).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
-        else { q += ` ORDER BY t.updated_at DESC LIMIT 100`; const { results } = await env.DB.prepare(q).all(); return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); }
+        
+        // Ищем треды JOIN'ом по users, чтобы всегда отдавать актуальный ник, роль и шрифт
+        let q = `SELECT t.id, t.section_slug, t.title, t.created_at, t.updated_at, 
+                 u.display_name AS author_name, u.role AS author_role, u.font_family AS author_font,
+                 (SELECT id FROM posts p WHERE p.thread_id = t.id ORDER BY p.created_at ASC LIMIT 1) AS first_post_id, 
+                 (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count 
+                 FROM threads t LEFT JOIN users u ON t.author_id = u.id`;
+                 
+        if (section) { 
+          q += ` WHERE t.section_slug = ? ORDER BY t.updated_at DESC LIMIT 100`; 
+          const { results } = await env.DB.prepare(q).bind(section).all(); 
+          return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); 
+        } else if (my) { 
+          // Для поиска "моих" тредов находим ID пользователя по нику
+          const user = await env.DB.prepare(`SELECT id FROM users WHERE display_name = ?`).bind(my).first();
+          if (!user) return new Response(JSON.stringify([]), { headers: { ...cors, 'Content-Type': 'application/json' } });
+          
+          q += ` WHERE t.author_id = ? ORDER BY t.updated_at DESC LIMIT 100`; 
+          const { results } = await env.DB.prepare(q).bind(user.id).all(); 
+          return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); 
+        } else { 
+          q += ` ORDER BY t.updated_at DESC LIMIT 100`; 
+          const { results } = await env.DB.prepare(q).all(); 
+          return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } }); 
+        }
       }
       if (url.pathname === '/api/threads' && request.method === 'POST') {
         const b = await request.json();
         const slug = (b.section_slug || 'general').toLowerCase().replace(/\s+/g, '-');
-        const t = await env.DB.prepare(`INSERT INTO threads (section_slug, title, author_name) VALUES (?, ?, ?) RETURNING id`).bind(slug, b.title, b.author_name || 'guest').first();
-        await env.DB.prepare(`INSERT INTO posts (thread_id, author_name, body, image_url, music_url) VALUES (?, ?, ?, ?, ?)`).bind(t.id, b.author_name || 'guest', b.body, b.image_url || null, b.music_url || null).run();
+        
+        // Находим ID автора
+        let author = await env.DB.prepare(`SELECT id FROM users WHERE display_name = ?`).bind(b.author_name).first();
+        const authorId = author ? author.id : null; // null для гостей
+
+        const t = await env.DB.prepare(`INSERT INTO threads (section_slug, title, author_id) VALUES (?, ?, ?) RETURNING id`).bind(slug, b.title, authorId).first();
+        await env.DB.prepare(`INSERT INTO posts (thread_id, author_id, body, image_url, music_url) VALUES (?, ?, ?, ?, ?)`).bind(t.id, authorId, b.body, b.image_url || null, b.music_url || null).run();
         return new Response(JSON.stringify({ id: t.id }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
@@ -251,18 +283,29 @@ export default {
         const threadId = url.searchParams.get('thread');
         const thread = await env.DB.prepare(`SELECT * FROM threads WHERE id = ?`).bind(threadId).first();
         if (!thread) return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: cors });
-        const { results } = await env.DB.prepare(`SELECT p.*, u.avatar_url AS author_avatar, u.role AS author_role, u.font_family AS author_font FROM posts p LEFT JOIN users u ON p.author_name = u.display_name WHERE p.thread_id = ? ORDER BY p.created_at ASC`).bind(threadId).all();
+        
+        // Подтягиваем актуальные данные авторов
+        const { results } = await env.DB.prepare(`SELECT p.id, p.body, p.image_url, p.music_url, p.created_at, 
+          COALESCE(u.display_name, 'guest') AS author_name, 
+          COALESCE(u.avatar_url, '') AS author_avatar, 
+          COALESCE(u.role, 'user') AS author_role, 
+          COALESCE(u.font_family, '') AS author_font 
+          FROM posts p LEFT JOIN users u ON p.author_id = u.id WHERE p.thread_id = ? ORDER BY p.created_at ASC`).bind(threadId).all();
         return new Response(JSON.stringify({ thread, posts: results }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
       if (url.pathname === '/api/posts' && request.method === 'POST') {
         const b = await request.json();
-        await env.DB.prepare(`INSERT INTO posts (thread_id, author_name, body, image_url, music_url) VALUES (?, ?, ?, ?, ?)`).bind(b.thread_id, b.author_name || 'guest', b.body, b.image_url || null, b.music_url || null).run();
+        
+        let author = await env.DB.prepare(`SELECT id FROM users WHERE display_name = ?`).bind(b.author_name).first();
+        const authorId = author ? author.id : null;
+
+        await env.DB.prepare(`INSERT INTO posts (thread_id, author_id, body, image_url, music_url) VALUES (?, ?, ?, ?, ?)`).bind(b.thread_id, authorId, b.body, b.image_url || null, b.music_url || null).run();
         await env.DB.prepare(`UPDATE threads SET updated_at = unixepoch() WHERE id = ?`).bind(b.thread_id).run();
         return new Response(JSON.stringify({ ok: true }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
     } catch (e) { 
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }); 
+      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
     
     return new Response('Not found', { status: 404 });
