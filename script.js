@@ -595,14 +595,14 @@ if (document.getElementById('setNick')) {
       const file = e.target.files[0]; if (!file) return; 
       const r = new FileReader(); 
       r.onload = ev => { 
-        // 1. Сначала вешаем onload
+        
         i.onload = () => {
-          // 2. Показываем контейнер
-          c.style.display = 'block'; 
+          // 1. Делаем контейнер видимым (добавляем класс active)
+          c.classList.add('active');
           b.style.display = 'inline-block'; 
           
-          // 3. Ждем 1 кадр для отрисовки
-          requestAnimationFrame(() => {
+          // 2. Даем браузеру 50мс на пересчет размеров
+          setTimeout(() => {
             if (window['crop' + fileId]) {
               window['crop' + fileId].destroy(); 
             }
@@ -613,15 +613,14 @@ if (document.getElementById('setNick')) {
                 viewMode: 1, 
                 background: false,
                 autoCropArea: 1,
-                responsive: true,
-                checkCrossOrigin: false
+                responsive: true
               }); 
             } else {
               console.warn('Cropper.js is not loaded.');
             }
-          });
+          }, 50);
         };
-        // 4. Присваиваем src
+        
         i.src = ev.target.result; 
       }; 
       r.readAsDataURL(file); 
@@ -635,7 +634,7 @@ if (document.getElementById('setNick')) {
   window.applyAvatarCrop = () => { 
     if (!window.cropavatarFile) return; 
     document.getElementById('setAvatar').value = window.cropavatarFile.getCroppedCanvas({ width: 200, height: 200 }).toDataURL('image/jpeg', 0.85); 
-    document.getElementById('avatarCropperContainer').style.display = 'none'; 
+    document.getElementById('avatarCropperContainer').classList.remove('active'); 
     document.getElementById('saveAvatarBtn').style.display = 'none'; 
     updatePreview(); 
   };
@@ -643,7 +642,7 @@ if (document.getElementById('setNick')) {
   window.applyBannerCrop = () => { 
     if (!window.cropbannerFile) return; 
     document.getElementById('setBanner').value = window.cropbannerFile.getCroppedCanvas({ width: 1200, height: 400 }).toDataURL('image/jpeg', 0.85); 
-    document.getElementById('bannerCropperContainer').style.display = 'none'; 
+    document.getElementById('bannerCropperContainer').classList.remove('active'); 
     document.getElementById('saveBannerBtn').style.display = 'none'; 
     updatePreview(); 
   };
@@ -652,7 +651,7 @@ if (document.getElementById('setNick')) {
     if (!window.cropbgFile) return;
     const b = window.cropbgFile.getCroppedCanvas({ width: 2560, height: 1440, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.9);
     document.getElementById('setBg').value = b;
-    document.getElementById('bgCropperContainer').style.display = 'none'; 
+    document.getElementById('bgCropperContainer').classList.remove('active'); 
     document.getElementById('saveBgBtn').style.display = 'none';
     applyCustomBg(b);
     if (window.cropbgFile) { window.cropbgFile.destroy(); window.cropbgFile = null; }
