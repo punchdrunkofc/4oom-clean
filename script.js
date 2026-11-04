@@ -33,6 +33,7 @@ function getRoleBadge(role) {
   const labels = { moderator: 'MOD', editor: 'EDITOR' };
   return `<span class="role-badge role-${role}">${labels[role]}</span>`;
 }
+
 function formatName(name, role, font) {
   const f = font && font.trim() !== '' ? font : 'var(--font-pixel)';
   const s = `font-family: ${f};`;
@@ -40,7 +41,6 @@ function formatName(name, role, font) {
   return `<span style="${s}">${escapeHtml(name)}</span>`;
 }
 
-// Функция для применения фона (вынесена отдельно, чтобы не дублировать код)
 function applyCustomBg(url) {
   if (!url) return;
   document.body.style.backgroundImage = `url('${url}')`;
@@ -179,7 +179,15 @@ if (document.getElementById('threadList')) {
       
       list.innerHTML = threads.map(t => {
         const canDel = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || t.author_name === currentUser.login);
-        return `<li class="thread" style="text-align: left; display: flex; justify-content: space-between; align-items: center;"><div style="flex-grow: 1;"><a href="/thread.html?id=${t.id}" style="text-decoration: none; color: inherit;"><span class="thread__title">${!currentSection || currentSection === 'my' ? `[${t.section_slug}] ` : ''}${escapeHtml(t.title)}</span><span class="thread__meta">by ${formatName(t.author_name, t.author_role, t.author_font)} · ${t.reply_count} replies</span></a></div><div>${canDel ? `<button class="delete-btn" onclick="deleteThread(${t.first_post_id})">delete</button>` : ''}</div></li>`;
+        return `<li class="thread" style="text-align: left; display: flex; justify-content: space-between; align-items: center;">
+          <div style="flex-grow: 1;">
+            <a href="/thread.html?id=${t.id}" style="text-decoration: none; color: inherit;">
+              <span class="thread__title">${!currentSection || currentSection === 'my' ? `[${t.section_slug}] ` : ''}${escapeHtml(t.title)}</span>
+              <span class="thread__meta">by ${formatName(t.author_name, t.author_role, t.author_font)} ${getRoleBadge(t.author_role)} · ${t.reply_count} replies</span>
+            </a>
+          </div>
+          <div>${canDel ? `<button class="delete-btn" onclick="deleteThread(${t.first_post_id})">delete</button>` : ''}</div>
+        </li>`;
       }).join('');
     } catch(e) { list.innerHTML = '<li>Error</li>'; }
   };
@@ -244,18 +252,11 @@ if (document.getElementById('setNick')) {
   
   window.applyBgCrop = () => {
     if (!window.cropbgFile) return;
-    // Сохраняем в 2K (2560x1440) и с высоким качеством 0.9
     const b = window.cropbgFile.getCroppedCanvas({ width: 2560, height: 1440, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.9);
     document.getElementById('setBg').value = b;
     document.getElementById('bgCropperContainer').style.display = 'none'; 
     document.getElementById('saveBgBtn').style.display = 'none';
-    
-    document.body.style.backgroundImage = `url('${b}')`;
-    document.body.style.backgroundSize = 'cover';
-    document.body.style.backgroundPosition = 'center';
-    document.body.style.backgroundAttachment = 'fixed';
-    document.body.style.backgroundRepeat = 'no-repeat';
-    
+    applyCustomBg(b);
     if (window.cropbgFile) { window.cropbgFile.destroy(); window.cropbgFile = null; }
   };
 
@@ -307,7 +308,6 @@ if (document.getElementById('postList')) {
       const data = await r.json(); 
       document.querySelector('.window__bar span').textContent = '📄 ' + data.thread.title;
       
-      // Применяем фон и в треде, если он есть у пользователя
       if (currentUser) {
          fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(res => res.json()).then(d => { if (d.user.background_url) applyCustomBg(d.user.background_url); });
       }
