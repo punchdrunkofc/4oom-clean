@@ -47,22 +47,38 @@ function formatName(name, role, font) {
   return `<span style="${s}">${escapeHtml(name)}</span>`;
 }
 
-// Функция для сброса фона (вызывается на всех страницах, кроме профиля создателя)
-function resetVideoBg() {
+// Универсальная функция для применения фона (картинка или видео)
+function applyCustomBg(url) {
   const video = document.getElementById('bgVideo');
-  if (video) {
-    video.pause();
-    video.style.display = 'none';
-    video.src = '';
+  if (!url) {
+    if (video) video.style.display = 'none';
+    document.body.style.backgroundImage = 'none';
+    document.body.style.backgroundColor = '#000';
+    return;
   }
-  document.body.style.backgroundImage = '';
-  document.body.style.backgroundSize = '';
-  document.body.style.backgroundPosition = '';
-  document.body.style.backgroundAttachment = '';
-  document.body.style.backgroundRepeat = '';
+  if (url.endsWith('.mp4')) {
+    document.body.style.backgroundImage = 'none';
+    document.body.style.backgroundColor = 'transparent';
+    if (video) { video.src = url; video.style.display = 'block'; video.currentTime = 0; video.play().catch(e => console.log(e)); }
+  } else {
+    if (video) video.style.display = 'none';
+    document.body.style.backgroundImage = `url('${url}')`;
+    document.body.style.backgroundSize = 'cover';
+    document.body.style.backgroundPosition = 'center';
+    document.body.style.backgroundAttachment = 'fixed';
+    document.body.style.backgroundRepeat = 'no-repeat';
+  }
 }
 
-// --- ПРОФИЛЬ (ЕДИНСТВЕННОЕ МЕСТО С ФОНОМ) ---
+// Сброс фона (вызывается на всех страницах, кроме профиля)
+function resetVideoBg() {
+  const video = document.getElementById('bgVideo');
+  if (video) { video.pause(); video.style.display = 'none'; video.src = ''; }
+  document.body.style.backgroundImage = '';
+  document.body.style.backgroundColor = '#000';
+}
+
+// --- ПРОФИЛЬ ---
 if (document.getElementById('userName')) {
   const login = urlParams.get('user');
   if (!login) location.href = '/';
@@ -75,18 +91,14 @@ if (document.getElementById('userName')) {
       
       // ЭФФЕКТ НЕОЖИДАННОСТИ: Если зашли на профиль создателя, включаем видео
       if (user.display_name === 'PunchDrunk' || user.role === 'creator') {
-        const video = document.getElementById('bgVideo');
-        if (video) {
-          if (video.src.indexOf('/bg.mp4') === -1) {
-            video.src = '/bg.mp4';
-          }
-          video.style.display = 'block';
-          video.currentTime = 0;
-          video.play().catch(e => console.log('Autoplay blocked'));
-          document.body.style.backgroundImage = 'none'; // Убираем звезды
-        }
+        applyCustomBg('/bg.mp4');
       } else {
-        resetVideoBg(); // Если это чужой профиль, видео нет
+        // Для остальных пользователей применяем картинку, если она есть
+        if (user.background_url) {
+          applyCustomBg(user.background_url);
+        } else {
+          resetVideoBg();
+        }
       }
       
       if (currentUser && currentUser.login === user.display_name) {
@@ -94,7 +106,10 @@ if (document.getElementById('userName')) {
       }
       document.getElementById('userAvatar').src = user.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
       
-      if (user.banner_url) { const b = document.getElementById('userBanner'); b.src = user.banner_url; b.style.display = 'block'; }
+      if (user.banner_url) { 
+        const b = document.getElementById('userBanner'); b.src = user.banner_url; b.style.display = 'block'; 
+        document.getElementById('bannerContainer').style.display = 'block';
+      }
       document.getElementById('userBio').textContent = user.bio || 'This user has not written a bio yet.';
       
       const list = document.getElementById('userThreads');
@@ -107,25 +122,21 @@ if (document.getElementById('userName')) {
   }
 }
 
-// --- ЧАТ (WebSocket) ---
+// --- ЧАТ ---
 if (document.getElementById('chatMessages')) {
-  resetVideoBg(); // На главной видео быть не должно
+  resetVideoBg();
   const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
   
   if (currentUser) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}`);
-    
     ws.onopen = () => { chatMsgs.innerHTML = ''; };
-    
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      
       if (data.type === 'history') {
         chatMsgs.innerHTML = '';
-        if (data.messages.length === 0) {
-          chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No messages yet.</div>';
-        } else {
+        if (data.messages.length === 0) { chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No messages yet.</div>'; } 
+        else {
           data.messages.forEach(m => {
             const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
             div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="font-weight: bold; color: #000080; text-decoration: none;">${escapeHtml(m.user)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(m.text)}</span>`;
@@ -134,20 +145,16 @@ if (document.getElementById('chatMessages')) {
           chatMsgs.scrollTop = chatMsgs.scrollHeight;
         }
       }
-
       if (data.type === 'chat') {
         const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
         div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="font-weight: bold; color: #000080; text-decoration: none;">${escapeHtml(data.user)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(data.text)}</span>`;
         chatMsgs.appendChild(div); chatMsgs.scrollTop = chatMsgs.scrollHeight;
       }
-      
       if (data.type === 'online') {
         onlineUsers.innerHTML = data.users.length > 0 ? '🟢 Online: ' + data.users.map(u => `<a href="/profile.html?user=${encodeURIComponent(u)}" style="color: inherit;">${escapeHtml(u)}</a>`).join(', ') : '⚫ No one online';
       }
     };
-    
     ws.onclose = () => { onlineUsers.innerHTML = '⚫ Disconnected'; setTimeout(() => location.reload(), 5000); };
-    
     chatForm.addEventListener('submit', e => {
       e.preventDefault(); const t = chatInput.value.trim();
       if (t && ws.readyState === WebSocket.OPEN) { chatInput.value = ''; ws.send(JSON.stringify({ text: t })); }
@@ -159,10 +166,9 @@ if (document.getElementById('chatMessages')) {
   }
 }
 
-// --- ГЛАВНАЯ (БЕЗ ПРИМЕНЕНИЯ ФОНА) ---
+// --- ГЛАВНАЯ ---
 if (document.getElementById('threadList')) {
-  resetVideoBg(); // На главной видео быть не должно
-  
+  resetVideoBg();
   fetch('/api/sections').then(r => r.json()).then(s => { 
     dbSections = s.map(x => x.section_slug); 
     const sel = document.getElementById('sectionSelect'); 
@@ -248,10 +254,10 @@ if (document.getElementById('threadList')) {
   loadThreads();
 }
 
-// --- НАСТРОЙКИ (БЕЗ ЗАГРУЗКИ ФОНА) ---
+// --- НАСТРОЙКИ ---
 if (document.getElementById('setNick')) {
-  resetVideoBg(); // В настройках видео не нужно
-  let avC = null, bnC = null;
+  resetVideoBg();
+  let avC = null, bnC = null, bgC = null;
   
   function updatePreview() {
     const n = document.getElementById('setNick').value || 'YourNickname', f = document.getElementById('setFont').value;
@@ -286,15 +292,30 @@ if (document.getElementById('setNick')) {
   
   setupCrop('avatarFile', 'avatarCropperContainer', 'avatarCropperImage', 'saveAvatarBtn', 1);
   setupCrop('bannerFile', 'bannerCropperContainer', 'bannerCropperImage', 'saveBannerBtn', 3);
+  setupCrop('bgFile', 'bgCropperContainer', 'bgCropperImage', 'saveBgBtn', 16/9);
 
   window.applyAvatarCrop = () => { if (!window.cropavatarFile) return; document.getElementById('setAvatar').value = window.cropavatarFile.getCroppedCanvas({ width: 200, height: 200 }).toDataURL('image/jpeg', 0.85); document.getElementById('avatarCropperContainer').style.display = 'none'; document.getElementById('saveAvatarBtn').style.display = 'none'; updatePreview(); };
   window.applyBannerCrop = () => { if (!window.cropbannerFile) return; document.getElementById('setBanner').value = window.cropbannerFile.getCroppedCanvas({ width: 1200, height: 400 }).toDataURL('image/jpeg', 0.85); document.getElementById('bannerCropperContainer').style.display = 'none'; document.getElementById('saveBannerBtn').style.display = 'none'; updatePreview(); };
+  
+  window.applyBgCrop = () => {
+    if (!window.cropbgFile) return;
+    const b = window.cropbgFile.getCroppedCanvas({ width: 2560, height: 1440, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.9);
+    document.getElementById('setBg').value = b;
+    document.getElementById('bgCropperContainer').style.display = 'none'; 
+    document.getElementById('saveBgBtn').style.display = 'none';
+    applyCustomBg(b);
+    if (window.cropbgFile) { window.cropbgFile.destroy(); window.cropbgFile = null; }
+  };
 
   if (currentUser) {
     document.getElementById('setNick').value = currentUser.login;
     fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(d => { 
       if (d.user.avatar_url) document.getElementById('setAvatar').value = d.user.avatar_url; 
       if (d.user.banner_url) document.getElementById('setBanner').value = d.user.banner_url; 
+      if (d.user.background_url) { 
+        document.getElementById('setBg').value = d.user.background_url; 
+        applyCustomBg(d.user.background_url);
+      } 
       document.getElementById('setBio').value = d.user.bio || ''; 
       if (document.getElementById('setFont')) document.getElementById('setFont').value = d.user.font_family || ''; 
       updatePreview(); 
@@ -303,19 +324,19 @@ if (document.getElementById('setNick')) {
   
   window.saveSettings = async () => {
     if (!currentUser) return alert('Login first!');
-    const n = document.getElementById('setNick').value.trim(), a = document.getElementById('setAvatar').value, b = document.getElementById('setBanner').value, bio = document.getElementById('setBio').value.trim(), f = document.getElementById('setFont').value;
+    const n = document.getElementById('setNick').value.trim(), a = document.getElementById('setAvatar').value, b = document.getElementById('setBanner').value, bg = document.getElementById('setBg').value, bio = document.getElementById('setBio').value.trim(), f = document.getElementById('setFont').value;
     if (!n) return alert('Nickname empty');
     try {
-      const r = await fetch('/api/profile', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: currentUser.id, display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: null }) });
+      const r = await fetch('/api/profile', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: currentUser.id, display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: bg }) });
       if (!r.ok) throw new Error('Save error');
       currentUser.login = n; currentUser.avatar = a; currentUser.font = f; localStorage.setItem('4oom_user', JSON.stringify(currentUser)); location.href = '/';
     } catch(e) { alert(e.message); }
   };
 }
 
-// --- ТРЕД (БЕЗ ПРИМЕНЕНИЯ ФОНА) ---
+// --- ТРЕД ---
 if (document.getElementById('postList')) {
-  resetVideoBg(); // В тредах видео не нужно
+  resetVideoBg();
   const tid = urlParams.get('id');
   
   window.deletePost = async (id) => { 
