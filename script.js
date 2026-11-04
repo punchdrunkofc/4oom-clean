@@ -337,3 +337,53 @@ if (document.getElementById('postList')) {
   });
   loadPosts();
 }
+// Внутри if (user.display_name === 'PunchDrunk' || user.role === 'creator')
+const video = document.getElementById('bgVideo');
+if (video) {
+    // Создаем клон, если его еще нет
+    let videoClone = document.getElementById('bgVideoClone');
+    if (!videoClone) {
+        videoClone = video.cloneNode(true);
+        videoClone.id = 'bgVideoClone';
+        videoClone.style.display = 'none'; // Скрыт по умолчанию
+        document.body.appendChild(videoClone);
+    }
+
+    if (video.src.indexOf('/bg.mp4') === -1) {
+        video.src = '/bg.mp4';
+        videoClone.src = '/bg.mp4';
+    }
+    
+    video.style.display = 'block';
+    video.currentTime = 0;
+    video.play().catch(e => console.log('Autoplay blocked'));
+    document.body.style.backgroundImage = 'none';
+
+    // Логика переключения
+    let isOriginal = true;
+    
+    // Функция для переключения
+    const switchVideo = () => {
+        if (isOriginal) {
+            videoClone.currentTime = 0;
+            videoClone.play();
+            videoClone.style.display = 'block';
+            video.style.display = 'none';
+            video.pause();
+            video.currentTime = 0; // Сбрасываем оригинал
+            isOriginal = false;
+        } else {
+            video.currentTime = 0;
+            video.play();
+            video.style.display = 'block';
+            videoClone.style.display = 'none';
+            videoClone.pause();
+            videoClone.currentTime = 0;
+            isOriginal = true;
+        }
+    };
+
+    // Слушаем конец видео
+    video.onended = switchVideo;
+    videoClone.onended = switchVideo;
+}
