@@ -7,7 +7,7 @@ if (userJson) { try { currentUser = JSON.parse(userJson); } catch(e) { localStor
 const urlParams = new URLSearchParams(window.location.search);
 const currentSection = urlParams.get('section');
 
-let allSections = []; // Глобальная переменная для хранения разделов
+let dbSections = []; // Разделы из базы данных
 
 function getRoleBadge(role) {
   if (!role || role === 'user') return '';
@@ -24,13 +24,16 @@ function formatName(name, role) {
 // --- ГЛАВНАЯ СТРАНИЦА ---
 if (document.getElementById('threadList')) {
   
-  // Загружаем разделы
+  // Загружаем разделы из базы
   fetch('/api/sections').then(r => r.json()).then(sections => {
-    allSections = sections.map(s => s.section_slug);
+    dbSections = sections.map(s => s.section_slug);
     
     // Заполняем верхнее меню
     const select = document.getElementById('sectionSelect');
-    allSections.forEach(sec => {
+    // Объединяем твой список из файла и список из базы (чтобы избежать дублей)
+    const allMenuSections = [...new Set([...customSuggestions, ...dbSections])].sort();
+    
+    allMenuSections.forEach(sec => {
       const opt = document.createElement('option');
       opt.value = sec;
       opt.textContent = sec;
@@ -41,7 +44,7 @@ if (document.getElementById('threadList')) {
     }
   });
 
-  // Логика автодополнения для поля Board Name
+  // Логика автодополнения
   const sectionInput = document.getElementById('newSection');
   const suggestionsBox = document.getElementById('sectionSuggestions');
 
@@ -55,8 +58,9 @@ if (document.getElementById('threadList')) {
         return;
       }
 
-      // Ищем совпадения
-      const matches = allSections.filter(s => s.includes(val));
+      // Объединяем списки для поиска
+      const allSuggestions = [...new Set([...customSuggestions, ...dbSections])].sort();
+      const matches = allSuggestions.filter(s => s.includes(val));
       
       if (matches.length > 0) {
         matches.forEach(match => {
@@ -74,7 +78,6 @@ if (document.getElementById('threadList')) {
       }
     });
 
-    // Скрываем подсказки при клике вне поля
     document.addEventListener('click', function(e) {
       if (e.target !== sectionInput && e.target !== suggestionsBox) {
         suggestionsBox.style.display = 'none';
@@ -176,4 +179,4 @@ if (document.getElementById('threadList')) {
   loadThreads();
 }
 
-// ... остальной код для настроек и треда (остается без изменений) ...
+// ... (Код для страницы настроек и треда остается таким же, как в прошлом сообщении) ...
