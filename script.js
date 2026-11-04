@@ -16,7 +16,6 @@ function getRoleBadge(role) {
   return `<span class="role-badge role-${role}">${labels[role]}</span>`;
 }
 
-// Безопасное применение шрифта
 function formatName(name, role, font) {
   const safeFont = font && font.trim() !== '' ? font : 'var(--font-pixel)';
   const style = `font-family: ${safeFont};`;
@@ -27,7 +26,6 @@ function formatName(name, role, font) {
   return `<span style="${style}">${escapeHtml(name)}</span>`;
 }
 
-// Обновление предпросмотра шрифта в настройках
 function updatePreview() {
   const nickInput = document.getElementById('setNick');
   const fontSelect = document.getElementById('setFont');
@@ -54,7 +52,18 @@ if (document.getElementById('userName')) {
         const { user, threads } = data;
         
         document.title = `4OOM — ${user.display_name}`;
-        document.getElementById('userName').innerHTML = formatName(user.display_name, user.role, user.font_family) + ' ' + getRoleBadge(user.role);
+        
+        document.getElementById('userName').innerHTML = formatName(user.display_name, user.role, user.font_family);
+        document.getElementById('userRole').innerHTML = getRoleBadge(user.role);
+        
+        if (currentUser && currentUser.login === user.display_name) {
+          const editBtn = document.getElementById('editProfileBtn');
+          if (editBtn) {
+            editBtn.style.display = 'inline-block';
+            editBtn.href = '/settings.html';
+          }
+        }
+
         document.getElementById('userAvatar').src = user.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
         
         if (user.banner_url) {
@@ -177,15 +186,18 @@ if (document.getElementById('threadList')) {
       
       list.innerHTML = threads.map(function(t) {
         const canDelete = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || t.author_name === currentUser.login);
-        const deleteBtn = canDelete ? `<button class="delete-btn" onclick="event.preventDefault(); deleteThread(${t.first_post_id})">delete</button>` : '';
+        const deleteBtn = canDelete ? `<button class="delete-btn" onclick="deleteThread(${t.first_post_id})">delete</button>` : '';
         const sectionBadge = (!currentSection || currentSection === 'my') ? `<span style="font-size:10px; color:#000080; margin-right:4px;">[${t.section_slug}]</span>` : '';
         
-        return `<li class="thread" style="text-align: left;">
-          <a href="/thread.html?id=${t.id}">
-            <span class="thread__title">${sectionBadge}${escapeHtml(t.title)}</span>
-            <span class="thread__meta">by <a href="/profile.html?user=${encodeURIComponent(t.author_name)}" style="text-decoration:none; color:inherit;">${formatName(t.author_name, t.author_role, t.author_font)}</a> · ${t.reply_count} replies</span>
-          </a>
-          ${deleteBtn}
+        // ИСПРАВЛЕНИЕ ВЕРСТКИ
+        return `<li class="thread" style="text-align: left; display: flex; justify-content: space-between; align-items: center;">
+          <div style="flex-grow: 1;">
+            <a href="/thread.html?id=${t.id}" style="text-decoration: none; color: inherit;">
+              <span class="thread__title">${sectionBadge}${escapeHtml(t.title)}</span>
+              <span class="thread__meta">by <span style="text-decoration: underline;">${formatName(t.author_name, t.author_role, t.author_font)}</span> · ${t.reply_count} replies</span>
+            </a>
+          </div>
+          <div>${deleteBtn}</div>
         </li>`;
       }).join('');
     } catch(e) { list.innerHTML = '<li>Load error</li>'; }
