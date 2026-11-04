@@ -2,6 +2,44 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // ================= AUTH =================
+    if (url.pathname === '/api/auth/login') {
+      const ghUrl = `https://github.com/login/oauth/authorize?client_id=${env.GH_CLIENT_ID}&redirect_uri=${encodeURIComponent(url.origin + '/api/auth/callback')}&scope=read:user`;
+      return Response.redirect(ghUrl, 302);
+    }
+
+    if (url.pathname === '/api/auth/callback') {
+      const code = url.searchParams.get('code');
+      if (!code) return new Response('No code provided', { status: 400 });
+
+      try {
+        const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+          method: 'POST',
+          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_id: env.GH_CLIENT_ID,
+            client_secret: env.GH_CLIENT_SECRET,
+            code: code,
+            redirect_uri: url.origin + '/api/auth/callback'
+          })
+        });
+        const tokenData = await tokenRes.json();
+        if (tokenData.error) throw new Error(tokenData.error_description);
+
+        const userRes = await fetch('https://api.github.com/user', {
+          headers: { 'Authorization': `Bearer ${tokenData.access_token}`, 'User-Agent': '4OOM' }
+        });
+        const user = await userRes.json();
+
+        return new Response(`<!DOCTYPE html><html><body><script>
+          localStorage.setItem('4oom_user', '${user.login.replace(/'/g, "\\'")}');
+          location.href = '/';
+        </script></body></html>`, { headers: { 'Content-Type': 'text/html' } });
+      } catch (e) {
+        return new Response('Auth error: ' + e.message, { status: 500 });
+      }
+    }
+
     // ================= API =================
     if (url.pathname.startsWith('/api/')) {
       const cors = {
@@ -55,19 +93,7 @@ export default {
     const commonCSS = `
       :root { --win-bg: #c0c0c0; --win-dark: #808080; --win-light: #ffffff; --win-title: #000080; --win-title-text: #ffffff; --font-pixel: 'MS Sans Serif', 'Tahoma', 'Verdana', sans-serif; }
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      
-      /* ТУТ ВОЗВРАЩАЕМ ЗВЕЗДНЫЙ ФОН */
-      body { 
-        font-family: var(--font-pixel); 
-        font-size: 13px; 
-        background-color: #000;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23000'/%3E%3Ccircle cx='10' cy='10' r='1' fill='%23fff'/%3E%3Ccircle cx='50' cy='50' r='1.5' fill='%23fff'/%3E%3Ccircle cx='80' cy='20' r='1' fill='%23fff'/%3E%3Ccircle cx='30' cy='80' r='1' fill='%23fff'/%3E%3Ccircle cx='90' cy='90' r='1.5' fill='%23fff'/%3E%3C/svg%3E");
-        background-repeat: repeat;
-        color: #000; 
-        min-height: 100vh; 
-        padding: 12px; 
-      }
-      
+      body { font-family: var(--font-pixel); font-size: 13px; background-color: #000; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23000'/%3E%3Ccircle cx='10' cy='10' r='1' fill='%23fff'/%3E%3Ccircle cx='50' cy='50' r='1.5' fill='%23fff'/%3E%3Ccircle cx='80' cy='20' r='1' fill='%23fff'/%3E%3Ccircle cx='30' cy='80' r='1' fill='%23fff'/%3E%3Ccircle cx='90' cy='90' r='1.5' fill='%23fff'/%3E%3C/svg%3E"); background-repeat: repeat; color: #000; min-height: 100vh; padding: 12px; }
       .window { background: var(--win-bg); border: 2px solid; border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light); box-shadow: 1px 1px 0 #000; margin-bottom: 12px; }
       .window__bar { background: linear-gradient(90deg, var(--win-title), #1084d0); color: var(--win-title-text); padding: 3px 6px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
       .win-btn { width: 18px; height: 16px; background: var(--win-bg); border: 1px solid; border-color: #fff #808080 #808080 #fff; font-size: 10px; cursor: pointer; padding: 0; line-height: 1; }
@@ -129,12 +155,29 @@ export default {
           </section>
           <aside class="window profile">
             <div class="window__bar"><span>👤 guest</span></div>
-            <div class="profile__body"><div class="avatar">?</div><p class="profile__name">guest_4oom</p><p class="profile__status">online · lurker</p><button class="neon-btn">войти</button></div>
+            <div class="profile__body" id="profileBox">
+              <div class="avatar">?</div>
+              <p class="profile__name" id="profileName">guest_4oom</p>
+              <p class="profile__status">online · lurker</p>
+              <button class="neon-btn" onclick="location.href='/api/auth/login'">войти через GitHub</button>
+            </div>
           </aside>
         </main>
         <footer class="footer"><p>4OOM © 2024</p></footer>
         <script>
           function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+          
+          const currentUser = localStorage.getItem('4oom_user');
+          if (currentUser) {
+            document.getElementById('profileName').textContent = currentUser;
+            document.getElementById('profileBox').innerHTML = \`
+              <div class="avatar" style="background:#000080;color:#fff;">\${currentUser[0].toUpperCase()}</div>
+              <p class="profile__name">\${escapeHtml(currentUser)}</p>
+              <p class="profile__status">online · github user</p>
+              <button class="neon-btn" onclick="localStorage.removeItem('4oom_user');location.reload()">выйти</button>
+            \`;
+          }
+
           async function loadThreads() {
             const list = document.getElementById('threadList');
             try {
@@ -151,7 +194,7 @@ export default {
             const body = document.getElementById('newBody').value;
             if (!title || !body) return alert('Заполни все поля');
             try {
-              const res = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, section_slug: 'general' }) });
+              const res = await fetch('/api/threads', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, body, section_slug: 'general', author_name: currentUser || 'guest' }) });
               if (!res.ok) {
                 const err = await res.json();
                 throw new Error(err.error || 'Ошибка сервера');
@@ -187,6 +230,7 @@ export default {
         </main>
         <script>
           function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+          const currentUser = localStorage.getItem('4oom_user');
           const threadId = new URLSearchParams(location.search).get('id');
           async function loadPosts() {
             if (!threadId) { location.href = '/'; return; }
@@ -204,7 +248,7 @@ export default {
             const body = document.getElementById('replyBody').value;
             if (!body) return;
             try {
-              await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body }) });
+              await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body, author_name: currentUser || 'guest' }) });
               document.getElementById('replyBody').value = '';
               loadPosts();
             } catch(e) { alert('Ошибка при отправке'); }
