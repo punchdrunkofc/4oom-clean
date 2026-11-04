@@ -5,6 +5,11 @@
 <title>4OOM — Settings</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1">
 <link rel="stylesheet" href="/style.css">
+<style>
+  .preview-container { margin-top: 12px; border: 2px solid var(--win-dark); background: var(--win-bg); }
+  .preview-banner { width: 100%; height: 100px; background: #808080; object-fit: cover; display: block; border-bottom: 2px solid var(--win-dark); }
+  .preview-bio { padding: 8px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px; font-family: 'Times New Roman', serif; min-height: 40px; font-size: 12px; }
+</style>
 </head>
 <body>
 <header class="header window">
@@ -35,7 +40,7 @@
       <textarea id="setBio" placeholder="Tell us about yourself..." style="width: 100%; height: 100px; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;"></textarea>
 
       <label>Nickname Font:</label>
-      <select id="setFont" style="width: 100%; margin-bottom: 8px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
+      <select id="setFont" style="width: 100%; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
         <option value="">Default (MS Sans Serif)</option>
         <option value="'Times New Roman', serif">Times New Roman</option>
         <option value="'Courier New', monospace">Courier New</option>
@@ -46,15 +51,27 @@
         <option value="'Lucida Console', monospace">Lucida Console</option>
       </select>
 
-      <div style="padding: 8px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin-bottom: 12px; text-align: center;">
-        <span style="font-size: 11px; color: #444;">Preview:</span><br>
-        <span id="fontPreview" style="font-size: 20px; font-weight: bold; color: #000080;">YourNickname</span>
-      </div>
-
       <button class="neon-btn" onclick="saveSettings()">Save</button>
       <button class="neon-btn" onclick="location.href='/'">Cancel</button>
     </div>
   </section>
+
+  <!-- БЛОК ЖИВОГО ПРЕДПРОСМОТРА -->
+  <section class="window">
+    <div class="window__bar"><span>👤 Live Profile Preview</span></div>
+    <div class="preview-container">
+      <img id="previewBanner" class="preview-banner" src="" alt="banner" style="display:none;">
+      <div style="display: flex; align-items: center; padding: 12px; gap: 12px;">
+        <img id="previewAvatar" class="avatar" style="width: 60px; height: 60px;" src="">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <span id="previewName" style="font-size: 20px; color: #000080; font-weight: bold;"></span>
+          <span id="previewRole"></span>
+        </div>
+      </div>
+      <div id="previewBio" class="preview-bio"></div>
+    </div>
+  </section>
+
 </main>
 <script src="/script.js"></script>
 </body>
