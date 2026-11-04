@@ -62,7 +62,6 @@ export default {
       try {
         if (!env.DB) return new Response(JSON.stringify({ error: 'No database. Bind D1 in settings!' }), { status: 500, headers: cors });
 
-        // Профиль
         if (url.pathname === '/api/profile' && request.method === 'POST') {
           const body = await request.json();
           if (!body.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
@@ -70,7 +69,6 @@ export default {
           return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Удаление треда или поста
         if (url.pathname === '/api/posts/delete' && request.method === 'POST') {
           const body = await request.json();
           if (!body.post_id || !body.user_role || !body.user_login) {
@@ -87,21 +85,17 @@ export default {
             return new Response(JSON.stringify({ error: 'No permission' }), { status: 403, headers: cors });
           }
 
-          // Проверяем, является ли этот пост первым в треде
           const firstPost = await env.DB.prepare(`SELECT id FROM posts WHERE thread_id = ? ORDER BY created_at ASC LIMIT 1`).bind(post.thread_id).first();
           
           if (firstPost && firstPost.id === post.id) {
-            // Если это первый пост, удаляем весь тред (посты удалятся каскадно благодаря FOREIGN KEY)
             await env.DB.prepare(`DELETE FROM threads WHERE id = ?`).bind(post.thread_id).run();
           } else {
-            // Иначе удаляем только пост
             await env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(body.post_id).run();
           }
 
           return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Треды (получение)
         if (url.pathname === '/api/threads' && request.method === 'GET') {
           const { results } = await env.DB.prepare(`
             SELECT t.*, 
@@ -112,7 +106,6 @@ export default {
           return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Треды (создание)
         if (url.pathname === '/api/threads' && request.method === 'POST') {
           const body = await request.json();
           const t = await env.DB.prepare(
@@ -124,7 +117,6 @@ export default {
           return new Response(JSON.stringify({ id: t.id }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Посты (получение)
         if (url.pathname === '/api/posts' && request.method === 'GET') {
           const threadId = url.searchParams.get('thread');
           const thread = await env.DB.prepare(`SELECT * FROM threads WHERE id = ?`).bind(threadId).first();
@@ -138,7 +130,6 @@ export default {
           return new Response(JSON.stringify({ thread, posts: results }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Посты (создание)
         if (url.pathname === '/api/posts' && request.method === 'POST') {
           const body = await request.json();
           await env.DB.prepare(`INSERT INTO posts (thread_id, author_name, body, image_url) VALUES (?, ?, ?, ?)`).bind(body.thread_id, body.author_name || 'guest', body.body, body.image_url || null).run();
@@ -200,17 +191,20 @@ export default {
       .role-moderator { background: #006400; }
       .role-editor { background: #000080; }
 
+      /* --- ОБНОВЛЕННАЯ РАДУГА --- */
       .creator-name {
         font-weight: bold;
-        background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
-        background-size: 400% 400%;
+        /* Градиент строго слева направо (to right) */
+        background: linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000);
+        background-size: 200% auto; /* Растягиваем фон */
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        animation: rainbow-anim 3s linear infinite;
+        /* Замедлили анимацию до 8 секунд */
+        animation: rainbow-anim 8s linear infinite;
       }
       @keyframes rainbow-anim {
-        0% { background-position: 0% 50%; }
-        100% { background-position: 400% 50%; }
+        0% { background-position: 0% center; }
+        100% { background-position: 200% center; }
       }
 
       .role-creator-glitter {
@@ -324,7 +318,6 @@ export default {
               if (!threads || threads.length === 0) { list.innerHTML = '<li class="thread"><a href="#"><span class="thread__title">Nothing here yet — create the first thread!</span></a></li>'; return; }
               
               list.innerHTML = threads.map(function(t) {
-                // Проверка прав на удаление треда (создатель, модер, редактор или автор)
                 const canDelete = currentUser && (
                   ['creator', 'moderator', 'editor'].includes(currentUser.role) || 
                   t.author_name === currentUser.login
