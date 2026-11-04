@@ -6,11 +6,15 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1">
 <link rel="stylesheet" href="/style.css">
 <style>
-  .banner { width: 100%; height: 150px; background: #808080; object-fit: cover; border-bottom: 2px solid var(--win-dark); display: block; }
+  .banner-container { width: 100%; height: 150px; overflow: hidden; position: relative; border-bottom: 2px solid var(--win-dark); background: #000; }
+  .banner { position: absolute; top: 50%; left: 50%; transform-origin: center; max-width: none; pointer-events: none; }
   .bio-box { padding: 12px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 12px; font-family: 'Times New Roman', serif; min-height: 50px; }
 </style>
 </head>
 <body>
+<!-- Контейнер для видео-фона -->
+<video id="bgVideo" autoplay loop muted playsinline style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none;"></video>
+
 <header class="header window">
   <div class="window__bar"><span>4OOM</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/settings.html'">⚙</button></div></div>
   <nav class="nav">
@@ -21,13 +25,15 @@
 <main class="layout layout--single">
   <section class="window">
     <div class="window__bar"><span>👤 user_profile</span></div>
-    <img id="userBanner" class="banner" src="" alt="banner" style="display:none;">
     
+    <div id="bannerContainer" class="banner-container" style="display:none;">
+      <img id="userBanner" class="banner" src="" alt="banner">
+    </div>
+
     <div style="display: flex; align-items: center; padding: 16px; gap: 16px; background: #e0e0e0; border-bottom: 1px solid #808080;">
       <img id="userAvatar" class="avatar" style="width: 100px; height: 100px; border: 2px solid #fff; box-shadow: 1px 1px 0 #000;" src="" alt="avatar">
       
       <div style="flex-grow: 1;">
-        <!-- Ник и бейдж разделены, чтобы бейдж не сжимался -->
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           <h2 id="userName" style="font-family: 'Impact', sans-serif; font-size: 28px; color: #000080; margin: 0;"></h2>
           <div id="userRole"></div>
