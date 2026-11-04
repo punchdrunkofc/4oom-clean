@@ -1,87 +1,127 @@
-export default {
-  async fetch(request, env) {
+import { DurableObject } from 'cloudflare:workers';
+
+// ================= DURABLE OBJECT (ЧАТ) =================
+export class ChatRoom extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    this.sessions = new Map();
+    this.messages = []; 
+    this.ctx.blockConcurrencyWhile(async () => {
+      this.messages = (await this.ctx.storage.get('messages')) || [];
+    });
+    this.ctx.getWebSockets().forEach((ws) => {
+      let attachment = ws.deserializeAttachment();
+      if (attachment) this.sessions.set(ws, attachment);
+    });
+  }
+
+  async fetch(request) {
+    const upgradeHeader = request.headers.get('Upgrade');
+    if (!upgradeHeader || upgradeHeader !== 'websocket') return new Response('Expected WebSocket', { status: 426 });
+    
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    this.ctx.acceptWebSocket(server);
+    
     const url = new URL(request.url);
+    const nick = url.searchParams.get('nick') || 'guest';
+    const role = url.searchParams.get('role') || 'user';
 
-    // --- СТАТИКА ---
-    if (!url.pathname.startsWith('/api/')) {
-      return env.ASSETS.fetch(request);
-    }
-
-    // ================= AUTH =================
-    if (url.pathname === '/api/auth/login') {
-      const clientId = env.GH_CLIENT_ID;
-      if (!clientId) return new Response('GitHub Client ID not configured', { status: 500 });
-      
-      const ghUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(url.origin + '/api/auth/callback')}&scope=read:user`;
-      return Response.redirect(ghUrl, 302);
-    }
-
-    if (url.pathname === '/api/auth/callback') {
-      const code = url.searchParams.get('code');
-      if (!code) return new Response('No code provided', { status: 400 });
-
-      try {
-        const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
-          method: 'POST',
-          headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            client_id: env.GH_CLIENT_ID,
-            client_secret: env.GH_CLIENT_SECRET,
-            code: code,
-            redirect_uri: url.origin + '/api/auth/callback'
-          })
-        });
-        const tokenData = await tokenRes.json();
-        if (tokenData.error) throw new Error(tokenData.error_description);
-
-        const userRes = await fetch('https://api.github.com/user', {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}`, 'User-Agent': '4OOM' }
-        });
-        const user = await userRes.json();
-
-        let dbUser = await env.DB.prepare(`SELECT * FROM users WHERE github_id = ?`).bind(user.id).first();
-        if (!dbUser) {
-          await env.DB.prepare(
-            `INSERT INTO users (github_id, github_login, display_name, avatar_url, role) VALUES (?, ?, ?, ?, 'user')`
-          ).bind(user.id, user.login, user.login, user.avatar_url).run();
-          dbUser = await env.DB.prepare(`SELECT * FROM users WHERE github_id = ?`).bind(user.id).first();
-        }
-
-        const userJson = JSON.stringify({ 
-          id: dbUser.id, 
-          login: dbUser.display_name, 
-          avatar: dbUser.avatar_url, 
-          role: dbUser.role, 
-          font: dbUser.font_family
-        });
-
-        return new Response(`<!DOCTYPE html><html><body><script>
-          localStorage.setItem('4oom_user', JSON.stringify(${userJson}));
-          location.href = '/';
-        </script></body></html>`, { headers: { 'Content-Type': 'text/html' } });
-      } catch (e) {
-        return new Response('Auth error: ' + e.message, { status: 500 });
+    for (let [ws, session] of this.sessions.entries()) {
+      if (session.nick === nick) {
+        try { ws.close(1000, 'New session opened'); } catch (e) {}
+        this.sessions.delete(ws);
       }
     }
 
-    // ================= API =================
-    const cors = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    };
+    server.serializeAttachment({ nick, role });
+    this.sessions.set(server, { nick, role });
+    server.send(JSON.stringify({ type: 'history', messages: this.messages }));
+    
+    this.broadcastOnline();
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async webSocketMessage(ws, message) {
+    const session = this.sessions.get(ws);
+    if (!session) return;
+    const data = JSON.parse(message);
+    const msgObj = { type: 'chat', user: session.nick, role: session.role, text: data.text, time: Date.now() };
+    
+    this.messages.push(msgObj);
+    if (this.messages.length > 50) this.messages = this.messages.slice(-50);
+    await this.ctx.storage.put('messages', this.messages); 
+
+    const msgToSend = JSON.stringify(msgObj);
+    this.ctx.getWebSockets().forEach((client) => { try { client.send(msgToSend); } catch (e) {} });
+  }
+
+  async webSocketClose(ws) {
+    this.sessions.delete(ws);
+    this.broadcastOnline();
+  }
+
+  broadcastOnline() {
+    const onlineUsers = Array.from(this.sessions.values()).map(s => s.nick);
+    const msg = JSON.stringify({ type: 'online', users: onlineUsers });
+    this.ctx.getWebSockets().forEach((client) => { try { client.send(msg); } catch (e) {} });
+  }
+}
+
+// ================= MAIN WORKER =================
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
+
+    // WEBSOCKET
+    if (url.pathname === '/api/chat/ws') {
+      const nick = url.searchParams.get('nick') || 'guest';
+      const role = url.searchParams.get('role') || 'user';
+      const id = env.CHAT_ROOM.idFromName('global');
+      const stub = env.CHAT_ROOM.get(id);
+      return stub.fetch(new Request(url.origin + `/ws?nick=${encodeURIComponent(nick)}&role=${encodeURIComponent(role)}`, request));
+    }
+
+    // AUTH
+    if (url.pathname === '/api/auth/login') {
+      const ghUrl = `https://github.com/login/oauth/authorize?client_id=${env.GH_CLIENT_ID}&redirect_uri=${encodeURIComponent(url.origin + '/api/auth/callback')}&scope=read:user`;
+      return Response.redirect(ghUrl, 302);
+    }
+    if (url.pathname === '/api/auth/callback') {
+      const code = url.searchParams.get('code');
+      if (!code) return new Response('No code provided', { status: 400 });
+      try {
+        const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+          method: 'POST', headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: env.GH_CLIENT_ID, client_secret: env.GH_CLIENT_SECRET, code, redirect_uri: url.origin + '/api/auth/callback' })
+        });
+        const tokenData = await tokenRes.json();
+        if (tokenData.error) throw new Error(tokenData.error_description);
+        const userRes = await fetch('https://api.github.com/user', { headers: { 'Authorization': `Bearer ${tokenData.access_token}`, 'User-Agent': '4OOM' } });
+        const user = await userRes.json();
+        let dbUser = await env.DB.prepare(`SELECT * FROM users WHERE github_id = ?`).bind(user.id).first();
+        if (!dbUser) {
+          await env.DB.prepare(`INSERT INTO users (github_id, github_login, display_name, avatar_url, role) VALUES (?, ?, ?, ?, 'user')`).bind(user.id, user.login, user.login, user.avatar_url).run();
+          dbUser = await env.DB.prepare(`SELECT * FROM users WHERE github_id = ?`).bind(user.id).first();
+        }
+        const userJson = JSON.stringify({ id: dbUser.id, login: dbUser.display_name, avatar: dbUser.avatar_url, role: dbUser.role, font: dbUser.font_family });
+        return new Response(`<html><body><script>localStorage.setItem('4oom_user', JSON.stringify(${userJson}));location.href='/';</script></body></html>`, { headers: { 'Content-Type': 'text/html' } });
+      } catch (e) { return new Response('Auth error: ' + e.message, { status: 500 }); }
+    }
+
+    // API
+    const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
-
+    
     try {
-      if (!env.DB) return new Response(JSON.stringify({ error: 'No database bound' }), { status: 500, headers: cors });
+      if (!env.DB) return new Response(JSON.stringify({ error: 'No DB bound' }), { status: 500, headers: cors });
 
-      // ПОЛЬЗОВАТЕЛИ
       if (url.pathname === '/api/users' && request.method === 'GET') {
         const { results } = await env.DB.prepare(`SELECT id, display_name, avatar_url, role FROM users ORDER BY display_name ASC`).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ДРУЗЬЯ
       if (url.pathname === '/api/friends/all' && request.method === 'GET') {
         const userId = url.searchParams.get('user_id');
         if (!userId) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
@@ -119,7 +159,6 @@ export default {
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ЛС
       if (url.pathname === '/api/messages' && request.method === 'GET') {
         const senderId = url.searchParams.get('sender_id');
         const receiverId = url.searchParams.get('receiver_id');
@@ -135,10 +174,9 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ПРОФИЛЬ (ЕДИНСТВЕННОЕ МЕСТО, ГДЕ БЫЛА ОШИБКА)
+      // ИСПРАВЛЕННЫЙ API ПРОФИЛЯ
       if (url.pathname === '/api/user' && request.method === 'GET') {
         const login = url.searchParams.get('login');
-        // Используем COALESCE, чтобы не падать, если колонки нет
         let user = await env.DB.prepare(`
           SELECT id, display_name, avatar_url, 
                  COALESCE(banner_url, '') as banner_url, 
@@ -175,7 +213,6 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ТРЕДЫ И ПОСТЫ
       if (url.pathname === '/api/sections' && request.method === 'GET') {
         const { results } = await env.DB.prepare(`SELECT DISTINCT section_slug FROM threads ORDER BY section_slug ASC`).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
