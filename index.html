@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>4OOM</title>
+<title>4OOM — About</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1">
 <link rel="stylesheet" href="/style.css">
 </head>
@@ -11,53 +11,47 @@
   <div class="window__bar"><span>4OOM</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/settings.html'">⚙</button></div></div>
   <div class="header__body"><div class="header__center" style="text-align: center; flex: 1;"><h1 class="logo">4OOM</h1><p class="tagline">the room that never closed</p><marquee class="marquee" scrollamount="4">★ welcome to 4OOM ★ be nice ★ no spam ★ have fun ★</marquee></div></div>
   <nav class="nav">
-    <a href="/" class="nav__link" id="nav-home" style="font-weight: bold;">home</a>
-    
-    <select id="sectionSelect" class="nav__link" onchange="if(this.value) location.href='?section='+this.value;" style="border: none; background: transparent; font-family: inherit; font-size: 12px; color: #000080; cursor: pointer; outline: none;">
-      <option value="">-- boards --</option>
-    </select>
-
-    <a href="?section=my" class="nav__link" id="nav-my">my threads</a>
+    <a href="/" class="nav__link">home</a>
+    <a href="/about.html" class="nav__link" style="font-weight: bold; text-decoration: underline;">about</a>
+    <a href="/?section=my" class="nav__link">my threads</a>
   </nav>
 </header>
-<main class="layout">
-  <section class="window threads">
-    <div class="window__bar"><span>📁 threads/</span></div>
-    <div class="toolbar">
-      <button class="neon-btn" onclick="document.getElementById('createForm').style.display='block'">+ NEW THREAD</button>
-    </div>
-    <ul class="thread-list" id="threadList"><li class="thread"><a href="#"><span class="thread__title">Loading...</span></a></li></ul>
-    
-    <div id="createForm" style="display:none; padding: 12px; background: #e0e0e0; border-top: 1px solid #808080;">
-      <h3 style="margin-bottom: 8px;">Create Thread</h3>
-      <input type="text" id="newTitle" placeholder="Thread Title" style="width: 100%; margin-bottom: 8px; padding: 4px;">
-      <textarea id="newBody" placeholder="Post text" style="width: 100%; height: 80px; margin-bottom: 8px; padding: 4px;"></textarea>
+
+<main class="layout layout--single">
+  <section class="window">
+    <div class="window__bar"><span>📄 about_4oom.txt</span></div>
+    <div style="padding: 16px; font-family: 'Times New Roman', serif; font-size: 15px; line-height: 1.6;">
       
-      <label style="font-size: 12px; display: block; margin-bottom: 4px;">Board name (e.g. general, music, webcore):</label>
+      <h2 style="font-family: 'Impact', sans-serif; color: #000080; margin-bottom: 12px; font-size: 24px;">WELCOME TO 4OOM</h2>
       
-      <div style="position: relative; margin-bottom: 8px;">
-        <input type="text" id="newSection" placeholder="board name" style="width: 100%; padding: 4px;" autocomplete="off">
-        <div id="sectionSuggestions" style="display: none; position: absolute; left: 0; right: 0; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; z-index: 100; max-height: 150px; overflow-y: auto;"></div>
+      <p><b>4OOM</b> is a retro-style forum inspired by the golden era of the internet (Web 1.0, GeoCities, Windows 95). We are a small community of people who miss the old web — the one with guestbooks, marquee tags, pixel art, and genuine human connection.</p>
+      
+      <br>
+      
+      <h3 style="color: #000080; margin-bottom: 8px;">📜 RULES</h3>
+      <ul style="margin-left: 20px; margin-bottom: 16px;">
+        <li>Be nice to each other.</li>
+        <li>No spam, no bots, no illegal content.</li>
+        <li>Keep it retro. This is a place for nostalgia.</li>
+        <li>Have fun and express yourself!</li>
+      </ul>
+
+      <br>
+
+      <h3 style="color: #000080; margin-bottom: 8px;">🛠 HOW IT WORKS</h3>
+      <p>This site is built entirely on <b>Cloudflare Workers</b> and <b>D1 Database</b>. It is a fully serverless, anonymous-friendly forum. You can log in via GitHub to get your custom nickname, avatar, and role.</p>
+
+      <br>
+
+      <div style="text-align: center; margin-top: 24px;">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='31'%3E%3Crect width='88' height='31' fill='%23000' stroke='%23fff'/%3E%3Ctext x='44' y='20' font-family='monospace' font-size='10' fill='%2300ff00' text-anchor='middle'%3Emade with LOVE%3C/text%3E%3C/svg%3E" alt="badge" style="margin: 4px;">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='31'%3E%3Crect width='88' height='31' fill='%23000' stroke='%23fff'/%3E%3Ctext x='44' y='20' font-family='monospace' font-size='10' fill='%2300ff00' text-anchor='middle'%3EBEST VIEWED IN IE%3C/text%3E%3C/svg%3E" alt="badge" style="margin: 4px;">
       </div>
 
-      <input type="text" id="newImage" placeholder="Image URL (optional)" style="width: 100%; margin-bottom: 8px; padding: 4px;">
-      <input type="text" id="newMusic" placeholder="Music URL (optional, .mp3)" style="width: 100%; margin-bottom: 8px; padding: 4px;">
-      <button class="neon-btn" onclick="submitThread()">Create</button>
-      <button class="neon-btn" onclick="document.getElementById('createForm').style.display='none'">Cancel</button>
     </div>
   </section>
-  <aside class="window profile">
-    <div class="window__bar"><span>👤 profile</span></div>
-    <div class="profile__body" id="profileBox">
-      <div class="avatar">?</div>
-      <p class="profile__name" id="profileName">guest_4oom</p>
-      <p class="profile__status">online · lurker</p>
-      <button class="neon-btn" onclick="location.href='/api/auth/login'">login with GitHub</button>
-    </div>
-  </aside>
 </main>
+
 <footer class="footer"><p>4OOM © 2024</p></footer>
-<script src="/suggestions.js"></script>
-<script src="/script.js"></script>
 </body>
 </html>
