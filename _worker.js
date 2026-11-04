@@ -22,7 +22,9 @@ export class ChatRoom extends DurableObject {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     
-    const nick = new URL(request.url).searchParams.get('nick') || 'guest';
+    const url = new URL(request.url);
+    const nick = url.searchParams.get('nick') || 'guest';
+    const role = url.searchParams.get('role') || 'user';
 
     for (let [ws, session] of this.sessions.entries()) {
       if (session.nick === nick) {
@@ -31,8 +33,8 @@ export class ChatRoom extends DurableObject {
       }
     }
 
-    server.serializeAttachment({ nick });
-    this.sessions.set(server, { nick });
+    server.serializeAttachment({ nick, role });
+    this.sessions.set(server, { nick, role });
     server.send(JSON.stringify({ type: 'history', messages: this.messages }));
     
     this.broadcastOnline();
@@ -43,7 +45,7 @@ export class ChatRoom extends DurableObject {
     const session = this.sessions.get(ws);
     if (!session) return;
     const data = JSON.parse(message);
-    const msgObj = { type: 'chat', user: session.nick, text: data.text, time: Date.now() };
+    const msgObj = { type: 'chat', user: session.nick, role: session.role, text: data.text, time: Date.now() };
     
     this.messages.push(msgObj);
     if (this.messages.length > 50) this.messages = this.messages.slice(-50);
@@ -74,9 +76,10 @@ export default {
     // WEBSOCKET
     if (url.pathname === '/api/chat/ws') {
       const nick = url.searchParams.get('nick') || 'guest';
+      const role = url.searchParams.get('role') || 'user';
       const id = env.CHAT_ROOM.idFromName('global');
       const stub = env.CHAT_ROOM.get(id);
-      return stub.fetch(new Request(url.origin + '/ws?nick=' + encodeURIComponent(nick), request));
+      return stub.fetch(new Request(url.origin + `/ws?nick=${encodeURIComponent(nick)}&role=${encodeURIComponent(role)}`, request));
     }
 
     // AUTH
