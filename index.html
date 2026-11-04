@@ -11,7 +11,25 @@
 <video id="bgVideo" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none; filter: sepia(1) hue-rotate(220deg) saturate(3) brightness(0.6);"></video>
 
 <header class="header window">
-  <div class="window__bar"><span>4OOM</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/settings.html'">⚙</button></div></div>
+  <div class="window__bar">
+    <span>4OOM</span>
+    <div class="window__buttons" style="position: relative;">
+      <!-- Кнопка уведомлений -->
+      <button class="win-btn" id="notifBtn" title="Notifications" style="margin-right: 4px;">🔔<span id="notifCount" style="color: red; font-weight: bold; font-size: 10px;"></span></button>
+      
+      <!-- Шестеренка -->
+      <button class="win-btn" onclick="location.href='/settings.html'">⚙</button>
+      
+      <!-- Выпадающее окно уведомлений -->
+      <div id="notifDropdown" style="display: none; position: absolute; top: 25px; right: 0; width: 250px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; z-index: 1000; padding: 8px; font-size: 12px; box-shadow: 2px 2px 5px rgba(0,0,0,0.5);">
+        <div style="font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 4px;">Notifications</div>
+        <div id="notifList" style="max-height: 200px; overflow-y: auto;">
+          <div style="color: #888; text-align: center;">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
   <div class="header__body">
     <div class="header__center" style="text-align: center; flex: 1;">
       <h1 class="logo">4OOM</h1>
@@ -19,6 +37,7 @@
       <marquee class="marquee" scrollamount="4">★ welcome to 4OOM ★ be nice ★ no spam ★ have fun ★</marquee>
     </div>
   </div>
+  
   <nav class="nav">
     <a href="/" class="nav__link" id="nav-home" style="font-weight: bold;">home</a>
     
@@ -60,6 +79,7 @@
     </div>
   </section>
   
+  <!-- ЧАТ -->
   <section class="window chat-box" style="margin-top: 12px;">
     <div class="window__bar"><span>💬 Lobby Chat</span></div>
     <div style="padding: 8px; height: 200px; overflow-y: auto; background: #fff; border-bottom: 2px solid #808080;" id="chatMessages">
@@ -74,7 +94,7 @@
     </div>
   </section>
 
-  <!-- БЛОК ПОЛЬЗОВАТЕЛЕЙ -->
+  <!-- СПИСОК ПОЛЬЗОВАТЕЛЕЙ -->
   <section class="window" style="margin-top: 12px;">
     <div class="window__bar"><span>👥 Registered Users</span></div>
     <div id="usersList" style="padding: 8px; max-height: 300px; overflow-y: auto; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px;">
