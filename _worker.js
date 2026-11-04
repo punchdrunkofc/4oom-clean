@@ -101,7 +101,6 @@ export default {
       }
 
       if (url.pathname === '/api/threads' && request.method === 'GET') {
-        // ИСПРАВЛЕНИЕ: Добавлен JOIN с таблицей users, чтобы получить роль автора треда
         const { results } = await env.DB.prepare(`
           SELECT t.*, u.role AS author_role,
           (SELECT id FROM posts p WHERE p.thread_id = t.id ORDER BY p.created_at ASC LIMIT 1) AS first_post_id,
@@ -119,8 +118,8 @@ export default {
           `INSERT INTO threads (section_slug, title, author_name) VALUES (?, ?, ?) RETURNING id`
         ).bind(body.section_slug || 'general', body.title, body.author_name || 'guest').first();
         await env.DB.prepare(
-          `INSERT INTO posts (thread_id, author_name, body, image_url) VALUES (?, ?, ?, ?)`
-        ).bind(t.id, body.author_name || 'guest', body.body, body.image_url || null).run();
+          `INSERT INTO posts (thread_id, author_name, body, image_url, music_url) VALUES (?, ?, ?, ?, ?)`
+        ).bind(t.id, body.author_name || 'guest', body.body, body.image_url || null, body.music_url || null).run();
         return new Response(JSON.stringify({ id: t.id }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
@@ -139,7 +138,7 @@ export default {
 
       if (url.pathname === '/api/posts' && request.method === 'POST') {
         const body = await request.json();
-        await env.DB.prepare(`INSERT INTO posts (thread_id, author_name, body, image_url) VALUES (?, ?, ?, ?)`).bind(body.thread_id, body.author_name || 'guest', body.body, body.image_url || null).run();
+        await env.DB.prepare(`INSERT INTO posts (thread_id, author_name, body, image_url, music_url) VALUES (?, ?, ?, ?, ?)`).bind(body.thread_id, body.author_name || 'guest', body.body, body.image_url || null, body.music_url || null).run();
         await env.DB.prepare(`UPDATE threads SET updated_at = unixepoch() WHERE id = ?`).bind(body.thread_id).run();
         return new Response(JSON.stringify({ ok: true }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
       }
