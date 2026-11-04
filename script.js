@@ -16,18 +16,21 @@ function getRoleBadge(role) {
   return `<span class="role-badge role-${role}">${labels[role]}</span>`;
 }
 
-// Применяем шрифт и радугу
 function formatName(name, role, font) {
-  let style = "";
-  if (font) {
-    style = `font-family: '${font}', sans-serif;`;
-  }
-  
-  if (role === 'creator') {
-    // Для креатора оставляем радугу, но применяем его шрифт
-    return `<span class="creator-name" style="${style}">${escapeHtml(name)}</span>`;
-  }
+  let style = font ? `font-family: ${font};` : "";
+  if (role === 'creator') return `<span class="creator-name" style="${style}">${escapeHtml(name)}</span>`;
   return `<span style="${style}">${escapeHtml(name)}</span>`;
+}
+
+// Обновление предпросмотра шрифта в настройках
+function updatePreview() {
+  const nickInput = document.getElementById('setNick');
+  const fontSelect = document.getElementById('setFont');
+  const preview = document.getElementById('fontPreview');
+  if (preview && nickInput && fontSelect) {
+    preview.textContent = nickInput.value || 'YourNickname';
+    preview.style.fontFamily = fontSelect.value || 'var(--font-pixel)';
+  }
 }
 
 // --- СТРАНИЦА ПРОФИЛЯ ---
@@ -50,8 +53,10 @@ if (document.getElementById('userName')) {
         document.getElementById('userAvatar').src = user.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
         
         if (user.banner_url) {
-          document.getElementById('userBanner').src = user.banner_url;
-          document.getElementById('userBanner').style.display = 'block';
+          const banner = document.getElementById('userBanner');
+          banner.src = user.banner_url;
+          banner.style.display = 'block';
+          banner.style.objectPosition = user.banner_position || 'center';
         }
         
         document.getElementById('userBio').textContent = user.bio || 'This user has not written a bio yet.';
@@ -200,13 +205,20 @@ if (document.getElementById('threadList')) {
 
 // --- СТРАНИЦА НАСТРОЕК ---
 if (document.getElementById('setNick')) {
+  
+  document.getElementById('setNick').addEventListener('input', updatePreview);
+  document.getElementById('setFont').addEventListener('change', updatePreview);
+
   if (currentUser) {
     document.getElementById('setNick').value = currentUser.login;
     document.getElementById('setAvatar').value = currentUser.avatar || '';
+    
     fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(data => {
       document.getElementById('setBanner').value = data.user.banner_url || '';
+      document.getElementById('setBannerPos').value = data.user.banner_position || 'center';
       document.getElementById('setBio').value = data.user.bio || '';
       if(document.getElementById('setFont')) document.getElementById('setFont').value = data.user.font_family || '';
+      updatePreview(); 
     });
   }
 
@@ -215,15 +227,16 @@ if (document.getElementById('setNick')) {
     const nick = document.getElementById('setNick').value.trim();
     const avatar = document.getElementById('setAvatar').value.trim();
     const banner = document.getElementById('setBanner').value.trim();
+    const bannerPos = document.getElementById('setBannerPos').value;
     const bio = document.getElementById('setBio').value.trim();
-    const font = document.getElementById('setFont') ? document.getElementById('setFont').value.trim() : '';
+    const font = document.getElementById('setFont') ? document.getElementById('setFont').value : '';
     
     if (!nick) return alert('Nickname cannot be empty');
     try {
       const res = await fetch('/api/profile', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ user_id: currentUser.id, display_name: nick, avatar_url: avatar, banner_url: banner, bio: bio, font_family: font }) 
+        body: JSON.stringify({ user_id: currentUser.id, display_name: nick, avatar_url: avatar, banner_url: banner, banner_position: bannerPos, bio: bio, font_family: font }) 
       });
       if (!res.ok) throw new Error('Save error');
       
