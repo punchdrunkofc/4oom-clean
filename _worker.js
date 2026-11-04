@@ -34,12 +34,12 @@ export default {
         let dbUser = await env.DB.prepare(`SELECT * FROM users WHERE github_id = ?`).bind(user.id).first();
         if (!dbUser) {
           await env.DB.prepare(
-            `INSERT INTO users (github_id, github_login, display_name, avatar_url) VALUES (?, ?, ?, ?)`
+            `INSERT INTO users (github_id, github_login, display_name, avatar_url, role) VALUES (?, ?, ?, ?, 'user')`
           ).bind(user.id, user.login, user.login, user.avatar_url).run();
           dbUser = await env.DB.prepare(`SELECT * FROM users WHERE github_id = ?`).bind(user.id).first();
         }
 
-        const userJson = JSON.stringify({ id: dbUser.id, login: dbUser.display_name, avatar: dbUser.avatar_url });
+        const userJson = JSON.stringify({ id: dbUser.id, login: dbUser.display_name, avatar: dbUser.avatar_url, role: dbUser.role });
 
         return new Response(`<!DOCTYPE html><html><body><script>
           localStorage.setItem('4oom_user', JSON.stringify(${userJson}));
@@ -54,7 +54,7 @@ export default {
     if (url.pathname.startsWith('/api/')) {
       const cors = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+        'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       };
       if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
@@ -62,7 +62,7 @@ export default {
       try {
         if (!env.DB) return new Response(JSON.stringify({ error: 'No database. Bind D1 in settings!' }), { status: 500, headers: cors });
 
-        // Profile (save)
+        // Профиль (сохранение)
         if (url.pathname === '/api/profile' && request.method === 'POST') {
           const body = await request.json();
           if (!body.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
@@ -70,10 +70,32 @@ export default {
           return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Threads (get)
+        // Удаление поста
+        if (url.pathname === '/api/posts/delete' && request.method === 'POST') {
+          const body = await request.json();
+          if (!body.post_id || !body.user_role || !body.user_login) {
+            return new Response(JSON.stringify({ error: 'Missing data' }), { status: 400, headers: cors });
+          }
+
+          const post = await env.DB.prepare(`SELECT * FROM posts WHERE id = ?`).bind(body.post_id).first();
+          if (!post) return new Response(JSON.stringify({ error: 'Post not found' }), { status: 404, headers: cors });
+
+          // Проверка прав
+          const isAdmin = ['creator', 'moderator', 'editor'].includes(body.user_role);
+          const isOwner = post.author_name === body.user_login;
+
+          if (!isAdmin && !isOwner) {
+            return new Response(JSON.stringify({ error: 'No permission' }), { status: 403, headers: cors });
+          }
+
+          await env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(body.post_id).run();
+          return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        }
+
+        // Треды (получение)
         if (url.pathname === '/api/threads' && request.method === 'GET') {
           const { results } = await env.DB.prepare(`
-            SELECT t.*, u.avatar_url AS author_avatar,
+            SELECT t.*, u.avatar_url AS author_avatar, u.role AS author_role,
             (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count
             FROM threads t LEFT JOIN users u ON t.author_name = u.display_name
             ORDER BY t.updated_at DESC LIMIT 100
@@ -81,7 +103,7 @@ export default {
           return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Threads (create)
+        // Треды (создание)
         if (url.pathname === '/api/threads' && request.method === 'POST') {
           const body = await request.json();
           const t = await env.DB.prepare(
@@ -93,19 +115,19 @@ export default {
           return new Response(JSON.stringify({ id: t.id }), { status: 201, headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Posts (get)
+        // Посты (получение)
         if (url.pathname === '/api/posts' && request.method === 'GET') {
           const threadId = url.searchParams.get('thread');
           const thread = await env.DB.prepare(`SELECT * FROM threads WHERE id = ?`).bind(threadId).first();
           const { results } = await env.DB.prepare(`
-            SELECT p.*, u.avatar_url AS author_avatar
+            SELECT p.*, u.avatar_url AS author_avatar, u.role AS author_role
             FROM posts p LEFT JOIN users u ON p.author_name = u.display_name
             WHERE p.thread_id = ? ORDER BY p.created_at ASC
           `).bind(threadId).all();
           return new Response(JSON.stringify({ thread, posts: results }), { headers: { ...cors, 'Content-Type': 'application/json' } });
         }
 
-        // Posts (create)
+        // Посты (создание)
         if (url.pathname === '/api/posts' && request.method === 'POST') {
           const body = await request.json();
           await env.DB.prepare(`INSERT INTO posts (thread_id, author_name, body, image_url) VALUES (?, ?, ?, ?)`).bind(body.thread_id, body.author_name || 'guest', body.body, body.image_url || null).run();
@@ -161,6 +183,11 @@ export default {
       .settings-form { padding: 12px; }
       .settings-form label { display: block; margin-bottom: 4px; font-weight: bold; }
       .settings-form input { width: 100%; padding: 4px; margin-bottom: 12px; border: 2px solid; border-color: #808080 #fff #fff #808080; }
+      .role-badge { display: inline-block; padding: 2px 6px; font-size: 10px; font-weight: bold; color: #fff; border-radius: 2px; margin-left: 4px; }
+      .role-creator { background: #800000; }
+      .role-moderator { background: #006400; }
+      .role-editor { background: #000080; }
+      .delete-btn { background: #ffcccc; border: 1px solid #800000; color: #800000; font-size: 10px; padding: 1px 4px; cursor: pointer; margin-left: 8px; }
     `;
 
     // Home page
@@ -205,11 +232,17 @@ export default {
           let currentUser = null;
           if (userJson) { try { currentUser = JSON.parse(userJson); } catch(e) { localStorage.removeItem('4oom_user'); } }
           
+          function getRoleBadge(role) {
+            if (!role || role === 'user') return '';
+            const labels = { creator: 'CREATOR', moderator: 'MOD', editor: 'EDITOR' };
+            return \`<span class="role-badge role-\${role}">\${labels[role]}</span>\`;
+          }
+
           if (currentUser) {
             document.getElementById('profileName').textContent = currentUser.login;
             document.getElementById('profileBox').innerHTML = \`
               <img src="\${currentUser.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect width=%2280%22 height=%2280%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" class="avatar" alt="avatar">
-              <p class="profile__name">\${escapeHtml(currentUser.login)}</p>
+              <p class="profile__name">\${escapeHtml(currentUser.login)} \${getRoleBadge(currentUser.role)}</p>
               <p class="profile__status">online · github user</p>
               <button class="neon-btn" onclick="location.href='/settings'">settings</button>
               <button class="neon-btn" onclick="localStorage.clear();location.reload()">logout</button>
@@ -223,7 +256,7 @@ export default {
               const threads = await r.json();
               if (!threads || threads.length === 0) { list.innerHTML = '<li class="thread"><a href="#"><span class="thread__title">Nothing here yet — create the first thread!</span></a></li>'; return; }
               list.innerHTML = threads.map(function(t) {
-                return '<li class="thread"><a href="/thread?id=' + t.id + '"><span class="thread__id">#' + String(t.id).padStart(3, '0') + '</span><span class="thread__title">' + escapeHtml(t.title) + '</span><span class="thread__meta">' + t.reply_count + ' replies</span></a></li>';
+                return '<li class="thread"><a href="/thread?id=' + t.id + '"><span class="thread__id">#' + String(t.id).padStart(3, '0') + '</span><span class="thread__title">' + escapeHtml(t.title) + ' ' + getRoleBadge(t.author_role) + '</span><span class="thread__meta">' + t.reply_count + ' replies</span></a></li>';
               }).join('');
             } catch(e) { list.innerHTML = '<li>Load error</li>'; }
           }
@@ -336,6 +369,32 @@ export default {
           if (userJson) { try { currentUser = JSON.parse(userJson); } catch(e) {} }
           const threadId = new URLSearchParams(location.search).get('id');
           
+          function getRoleBadge(role) {
+            if (!role || role === 'user') return '';
+            const labels = { creator: 'CREATOR', moderator: 'MOD', editor: 'EDITOR' };
+            return \`<span class="role-badge role-\${role}">\${labels[role]}</span>\`;
+          }
+
+          async function deletePost(postId) {
+            if (!confirm('Delete this post?')) return;
+            try {
+              const res = await fetch('/api/posts/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  post_id: postId, 
+                  user_role: currentUser ? currentUser.role : 'guest', 
+                  user_login: currentUser ? currentUser.login : 'guest' 
+                })
+              });
+              if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error);
+              }
+              loadPosts();
+            } catch(e) { alert('Error: ' + e.message); }
+          }
+          
           async function loadPosts() {
             if (!threadId) { location.href = '/'; return; }
             try {
@@ -350,8 +409,17 @@ export default {
                 } else {
                   avatarHtml = '<div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block; vertical-align: middle;"></div>';
                 }
+                
+                // Проверка прав на удаление
+                const canDelete = currentUser && (
+                  ['creator', 'moderator', 'editor'].includes(currentUser.role) || 
+                  p.author_name === currentUser.login
+                );
+                const deleteBtn = canDelete ? \`<button class="delete-btn" onclick="deletePost(\${p.id})">delete</button>\` : '';
+                
                 let imgHtml = p.image_url ? '<img src="' + p.image_url + '" class="post__img" alt="image" onerror="this.style.display=\\'none\\'">' : '';
-                return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + escapeHtml(p.author_name) + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + imgHtml + '</div></article>';
+                
+                return '<article class="post"><div class="post__head"><span class="post__author">' + avatarHtml + escapeHtml(p.author_name) + getRoleBadge(p.author_role) + deleteBtn + '</span><span class="post__time">' + new Date(p.created_at * 1000).toLocaleString() + '</span></div><div class="post__body">' + escapeHtml(p.body) + imgHtml + '</div></article>';
               }).join('');
             } catch(e) { document.getElementById('postList').innerHTML = 'Error loading thread'; }
           }
