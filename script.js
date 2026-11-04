@@ -475,4 +475,21 @@ if (document.getElementById('postList')) {
   document.getElementById('replyForm').addEventListener('submit', async e => {
     e.preventDefault();
     const body = document.getElementById('replyBody').value;
-   
+    const imageFile = document.getElementById('replyImageFile').files[0];
+    const musicFile = document.getElementById('replyMusicFile').files[0];
+    if (!body) return;
+    
+    try {
+      let image_url = null; let music_url = null;
+      if (imageFile) image_url = await compressImage(imageFile);
+      if (musicFile) music_url = await new Promise((resolve) => { const reader = new FileReader(); reader.onload = e => resolve(e.target.result); reader.readAsDataURL(musicFile); });
+
+      const res = await fetch('/api/posts', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ thread_id: threadId, body, image_url, music_url, author_name: currentUser ? currentUser.login : 'guest' }) });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Server error'); }
+      
+      document.getElementById('replyBody').value = ''; document.getElementById('replyImageFile').value = ''; document.getElementById('replyMusicFile').value = '';
+      loadPosts();
+    } catch(e) { alert('Error sending: ' + e.message); }
+  });
+  loadPosts();
+}
