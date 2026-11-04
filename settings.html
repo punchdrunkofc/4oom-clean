@@ -5,10 +5,16 @@
 <title>4OOM — Settings</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1">
 <link rel="stylesheet" href="/style.css">
+<!-- Подключаем Cropper.js для обрезки баннера -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 <style>
   .preview-container { margin-top: 12px; border: 2px solid var(--win-dark); background: var(--win-bg); }
   .preview-banner { width: 100%; height: 100px; background: #808080; object-fit: cover; display: block; border-bottom: 2px solid var(--win-dark); }
   .preview-bio { padding: 8px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px; font-family: 'Times New Roman', serif; min-height: 40px; font-size: 12px; }
+  
+  #cropperContainer { width: 100%; height: 300px; background: #000; margin-bottom: 12px; display: none; }
+  #cropperImage { max-width: 100%; display: block; }
 </style>
 </head>
 <body>
@@ -26,15 +32,16 @@
       <label>Avatar URL:</label>
       <input type="text" id="setAvatar" placeholder="https://example.com/avatar.gif">
 
-      <label>Banner URL (profile header):</label>
-      <input type="text" id="setBanner" placeholder="https://example.com/banner.jpg">
-
-      <label>Banner Position (how to crop):</label>
-      <select id="setBannerPos" style="width: 100%; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
-        <option value="center">Center (default)</option>
-        <option value="top">Top</option>
-        <option value="bottom">Bottom</option>
-      </select>
+      <label>Upload Profile Banner:</label>
+      <input type="file" id="bannerFile" accept="image/*" style="margin-bottom: 8px;">
+      
+      <!-- Контейнер для ручной обрезки баннера -->
+      <div id="cropperContainer">
+        <img id="cropperImage" src="" alt="Banner to crop">
+      </div>
+      
+      <button type="button" id="saveCropBtn" class="neon-btn" style="display:none; margin-bottom: 12px;" onclick="applyCrop()">Apply Crop</button>
+      <input type="hidden" id="setBanner" value="">
 
       <label>Bio / Description:</label>
       <textarea id="setBio" placeholder="Tell us about yourself..." style="width: 100%; height: 100px; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;"></textarea>
