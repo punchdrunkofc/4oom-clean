@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -19,20 +19,31 @@
 
 <main class="layout layout--single">
   <section class="window">
-    <div class="window__bar"><span>📄 Loading...</span></div>
-    <div id="postList"></div>
+    <!-- ТУТ ИСПРАВЛЕНО: добавлен класс thread-title-bar, чтобы скрипт менял именно этот заголовок -->
+    <div class="window__bar"><span class="thread-title-bar">📄 Loading...</span></div>
+    
+    <div id="postList" style="padding: 8px; background: #c0c0c0;">
+      <div style="text-align: center; color: #444; font-family: 'Times New Roman', serif; padding: 20px;">Loading posts...</div>
+    </div>
     
     <div class="window__bar"><span>✍ reply</span></div>
-    <form class="reply-form" id="replyForm">
-      <textarea class="reply-form__textarea" id="replyBody" placeholder="type something..." rows="4"></textarea>
+    <form class="reply-form" id="replyForm" style="background: #e0e0e0;">
+      <textarea class="reply-form__textarea" id="replyBody" placeholder="type something..." rows="4" required></textarea>
       
-      <label style="font-size: 12px; display: block; margin-bottom: 4px;">Attach Image:</label>
-      <input type="file" id="replyImageFile" accept="image/*" class="reply-form__input" style="padding: 2px;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+        <div>
+          <label style="font-size: 11px; display: block; margin-bottom: 2px;">Attach Image:</label>
+          <input type="file" id="replyImageFile" accept="image/*" class="reply-form__input" style="padding: 2px; width: 100%;">
+        </div>
+        <div>
+          <label style="font-size: 11px; display: block; margin-bottom: 2px;">Attach Music (mp3):</label>
+          <input type="file" id="replyMusicFile" accept="audio/*" class="reply-form__input" style="padding: 2px; width: 100%;">
+        </div>
+      </div>
       
-      <label style="font-size: 12px; display: block; margin-bottom: 4px;">Attach Music (mp3):</label>
-      <input type="file" id="replyMusicFile" accept="audio/*" class="reply-form__input" style="padding: 2px;">
-      
-      <div class="reply-form__actions"><button type="submit" class="neon-btn">send</button></div>
+      <div class="reply-form__actions" style="text-align: right; border-top: 1px solid #808080; padding-top: 8px; margin-top: 8px;">
+        <button type="submit" class="neon-btn">send reply</button>
+      </div>
     </form>
   </section>
 </main>
