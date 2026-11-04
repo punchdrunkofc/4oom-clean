@@ -85,7 +85,11 @@ export default {
 
     // AUTH
     if (url.pathname === '/api/auth/login') {
-      const ghUrl = `https://github.com/login/oauth/authorize?client_id=${env.GH_CLIENT_ID}&redirect_uri=${encodeURIComponent(url.origin + '/api/auth/callback')}&scope=read:user`;
+      // ID берется из переменных окружения Cloudflare
+      const clientId = env.GH_CLIENT_ID;
+      if (!clientId) return new Response('GitHub Client ID not configured', { status: 500 });
+      
+      const ghUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(url.origin + '/api/auth/callback')}&scope=read:user`;
       return Response.redirect(ghUrl, 302);
     }
     if (url.pathname === '/api/auth/callback') {
@@ -123,19 +127,14 @@ export default {
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ДРУЗЬЯ (СПИСОК СВЯЗЕЙ)
+      // ДРУЗЬЯ
       if (url.pathname === '/api/friends/all' && request.method === 'GET') {
         const userId = url.searchParams.get('user_id');
         if (!userId) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
-        const { results } = await env.DB.prepare(`
-          SELECT friend_id FROM friends WHERE user_id = ? 
-          UNION 
-          SELECT user_id FROM friends WHERE friend_id = ?
-        `).bind(userId, userId).all();
+        const { results } = await env.DB.prepare(`SELECT friend_id FROM friends WHERE user_id = ? UNION SELECT user_id FROM friends WHERE friend_id = ?`).bind(userId, userId).all();
         return new Response(JSON.stringify(results.map(r => r.friend_id || r.user_id)), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ДРУЗЬЯ (ЗАПРОС)
       if (url.pathname === '/api/friends/request' && request.method === 'POST') {
         const body = await request.json();
         if (!body.user_id || !body.friend_id) return new Response(JSON.stringify({ error: 'Missing data' }), { status: 400, headers: cors });
@@ -145,19 +144,13 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ДРУЗЬЯ (ВХОДЯЩИЕ)
       if (url.pathname === '/api/friends/incoming' && request.method === 'GET') {
         const userId = url.searchParams.get('user_id');
         if (!userId) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
-        const { results } = await env.DB.prepare(`
-          SELECT f.user_id AS id, u.display_name, u.avatar_url 
-          FROM friends f JOIN users u ON f.user_id = u.id 
-          WHERE f.friend_id = ? AND f.status = 'pending'
-        `).bind(userId).all();
+        const { results } = await env.DB.prepare(`SELECT f.user_id AS id, u.display_name, u.avatar_url FROM friends f JOIN users u ON f.user_id = u.id WHERE f.friend_id = ? AND f.status = 'pending'`).bind(userId).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ДРУЗЬЯ (ПРИНЯТЬ)
       if (url.pathname === '/api/friends/accept' && request.method === 'POST') {
         const body = await request.json();
         if (!body.user_id || !body.friend_id) return new Response(JSON.stringify({ error: 'Missing data' }), { status: 400, headers: cors });
@@ -165,32 +158,22 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ДРУЗЬЯ (СПИСОК)
       if (url.pathname === '/api/friends/list' && request.method === 'GET') {
         const userId = url.searchParams.get('user_id');
         if (!userId) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
-        const { results } = await env.DB.prepare(`
-          SELECT u.id, u.display_name, u.avatar_url, u.role 
-          FROM friends f JOIN users u ON f.friend_id = u.id 
-          WHERE f.user_id = ? AND f.status = 'accepted'
-        `).bind(userId).all();
+        const { results } = await env.DB.prepare(`SELECT u.id, u.display_name, u.avatar_url, u.role FROM friends f JOIN users u ON f.friend_id = u.id WHERE f.user_id = ? AND f.status = 'accepted'`).bind(userId).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ЛС (ПОЛУЧЕНИЕ)
+      // ЛС
       if (url.pathname === '/api/messages' && request.method === 'GET') {
         const senderId = url.searchParams.get('sender_id');
         const receiverId = url.searchParams.get('receiver_id');
         if (!senderId || !receiverId) return new Response(JSON.stringify({ error: 'Missing IDs' }), { status: 400, headers: cors });
-        const { results } = await env.DB.prepare(`
-          SELECT * FROM messages 
-          WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
-          ORDER BY created_at ASC
-        `).bind(senderId, receiverId, receiverId, senderId).all();
+        const { results } = await env.DB.prepare(`SELECT * FROM messages WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?) ORDER BY created_at ASC`).bind(senderId, receiverId, receiverId, senderId).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ЛС (ОТПРАВКА)
       if (url.pathname === '/api/messages' && request.method === 'POST') {
         const b = await request.json();
         if (!b.sender_id || !b.receiver_id || !b.body) return new Response(JSON.stringify({ error: 'Missing data' }), { status: 400, headers: cors });
@@ -214,7 +197,7 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
-      // ТРЕДЫ И ПОСТЫ
+      // ТРЕДЫ
       if (url.pathname === '/api/sections' && request.method === 'GET') {
         const { results } = await env.DB.prepare(`SELECT DISTINCT section_slug FROM threads ORDER BY section_slug ASC`).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
