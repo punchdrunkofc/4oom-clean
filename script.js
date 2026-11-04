@@ -1,5 +1,10 @@
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+// ПРИМЕНЯЕМ ТЕМУ И ФОН ПРИ ЗАГРУЗКЕ
+const savedTheme = localStorage.getItem('4oom_theme') || 'dark';
+const savedBg = localStorage.getItem('4oom_bg') || 'stars';
+document.body.className = 'theme-' + savedTheme + ' bg-' + savedBg;
+
 function compressImage(file, maxWidth = 800) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -227,7 +232,7 @@ if (document.getElementById('setNick')) {
   document.getElementById('setBio').addEventListener('input', updateLivePreview);
   document.getElementById('setFont').addEventListener('change', updateLivePreview);
 
-  // Аватарка
+  // Аватарка (Кроп)
   let avatarCropper = null;
   const avatarFileInput = document.getElementById('avatarFile');
   const avatarCropperContainer = document.getElementById('avatarCropperContainer');
@@ -260,7 +265,7 @@ if (document.getElementById('setNick')) {
     updateLivePreview();
   };
 
-  // Баннер
+  // Баннер (Кроп)
   let bannerCropper = null;
   const bannerFileInput = document.getElementById('bannerFile');
   const bannerCropperContainer = document.getElementById('bannerCropperContainer');
@@ -293,6 +298,7 @@ if (document.getElementById('setNick')) {
     updateLivePreview();
   };
 
+  // Загрузка данных
   if (currentUser) {
     document.getElementById('setNick').value = currentUser.login;
     fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(data => {
@@ -300,6 +306,10 @@ if (document.getElementById('setNick')) {
       if (data.user.avatar_url) document.getElementById('setAvatar').value = data.user.avatar_url;
       document.getElementById('setBio').value = data.user.bio || '';
       if(document.getElementById('setFont')) document.getElementById('setFont').value = data.user.font_family || '';
+      
+      if(document.getElementById('setTheme')) document.getElementById('setTheme').value = data.user.theme || 'dark';
+      if(document.getElementById('setBg')) document.getElementById('setBg').value = data.user.background || 'stars';
+      
       updateLivePreview(); 
     });
   }
@@ -312,9 +322,18 @@ if (document.getElementById('setNick')) {
     const bio = document.getElementById('setBio').value.trim();
     const font = document.getElementById('setFont') ? document.getElementById('setFont').value : '';
     
+    const theme = document.getElementById('setTheme').value;
+    const bg = document.getElementById('setBg').value;
+    localStorage.setItem('4oom_theme', theme);
+    localStorage.setItem('4oom_bg', bg);
+    document.body.className = 'theme-' + theme + ' bg-' + bg;
+
     if (!nick) return alert('Nickname cannot be empty');
     try {
-      const res = await fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUser.id, display_name: nick, avatar_url: avatar, banner_url: banner, bio: bio, font_family: font }) });
+      const res = await fetch('/api/profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ 
+          user_id: currentUser.id, display_name: nick, avatar_url: avatar, banner_url: banner, 
+          bio: bio, font_family: font, theme: theme, background: bg 
+      }) });
       if (!res.ok) throw new Error('Save error');
       
       currentUser.login = nick; 
