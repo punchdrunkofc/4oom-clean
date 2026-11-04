@@ -47,16 +47,30 @@ function formatName(name, role, font) {
   return `<span style="${s}">${escapeHtml(name)}</span>`;
 }
 
+// Универсальная функция для применения фона (картинка или видео)
 function applyCustomBg(url) {
-  if (!url) return;
-  document.body.style.backgroundImage = `url('${url}')`;
-  document.body.style.backgroundSize = 'cover';
-  document.body.style.backgroundPosition = 'center';
-  document.body.style.backgroundAttachment = 'fixed';
-  document.body.style.backgroundRepeat = 'no-repeat';
+  const video = document.getElementById('bgVideo');
+  if (!url) {
+    if (video) video.style.display = 'none';
+    document.body.style.backgroundImage = 'none';
+    document.body.style.backgroundColor = '#000';
+    return;
+  }
+  if (url.endsWith('.mp4')) {
+    document.body.style.backgroundImage = 'none';
+    document.body.style.backgroundColor = 'transparent';
+    if (video) { video.src = url; video.style.display = 'block'; video.play().catch(e => console.log(e)); }
+  } else {
+    if (video) video.style.display = 'none';
+    document.body.style.backgroundImage = `url('${url}')`;
+    document.body.style.backgroundSize = 'cover';
+    document.body.style.backgroundPosition = 'center';
+    document.body.style.backgroundAttachment = 'fixed';
+    document.body.style.backgroundRepeat = 'no-repeat';
+  }
 }
 
-// --- ПРОФИЛЬ ---
+// --- ПРОФИЛЬ (ЕДИНСТВЕННОЕ МЕСТО, ГДЕ ПРИМЕНЯЕТСЯ ФОН) ---
 if (document.getElementById('userName')) {
   const login = urlParams.get('user');
   if (!login) location.href = '/';
@@ -67,7 +81,10 @@ if (document.getElementById('userName')) {
       document.getElementById('userName').innerHTML = formatName(user.display_name, user.role, user.font_family);
       document.getElementById('userRole').innerHTML = getRoleBadge(user.role);
       
-      applyCustomBg(user.background_url);
+      // ПРИМЕНЯЕМ ФОН ТОЛЬКО ЗДЕСЬ
+      if (user.background_url) {
+        applyCustomBg(user.background_url);
+      }
       
       if (currentUser && currentUser.login === user.display_name) {
         const b = document.getElementById('editProfileBtn'); if (b) { b.style.display = 'inline-block'; b.href = '/settings.html'; }
@@ -138,14 +155,8 @@ if (document.getElementById('chatMessages')) {
   }
 }
 
-// --- ГЛАВНАЯ ---
+// --- ГЛАВНАЯ (БЕЗ ПРИМЕНЕНИЯ ФОНА) ---
 if (document.getElementById('threadList')) {
-  if (currentUser) {
-    fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(d => { 
-      if (d.user.background_url) applyCustomBg(d.user.background_url); 
-    });
-  }
-  
   fetch('/api/sections').then(r => r.json()).then(s => { 
     dbSections = s.map(x => x.section_slug); 
     const sel = document.getElementById('sectionSelect'); 
@@ -285,11 +296,20 @@ if (document.getElementById('setNick')) {
 
   if (currentUser) {
     document.getElementById('setNick').value = currentUser.login;
+    
+    if (currentUser.role === 'creator') {
+      const cBg = document.getElementById('creatorBgUrl');
+      if (cBg) cBg.style.display = 'block';
+    }
+
     fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(d => { 
       if (d.user.avatar_url) document.getElementById('setAvatar').value = d.user.avatar_url; 
       if (d.user.banner_url) document.getElementById('setBanner').value = d.user.banner_url; 
       if (d.user.background_url) { 
         document.getElementById('setBg').value = d.user.background_url; 
+        if (d.user.background_url.endsWith('.mp4') && document.getElementById('setBgUrl')) {
+           document.getElementById('setBgUrl').value = d.user.background_url;
+        }
         applyCustomBg(d.user.background_url);
       } 
       document.getElementById('setBio').value = d.user.bio || ''; 
@@ -297,6 +317,14 @@ if (document.getElementById('setNick')) {
       updatePreview(); 
     });
   }
+
+  window.applyCreatorBg = function() {
+    const url = document.getElementById('setBgUrl').value.trim();
+    if (url) {
+      document.getElementById('setBg').value = url; 
+      applyCustomBg(url);
+    }
+  };
   
   window.saveSettings = async () => {
     if (!currentUser) return alert('Login first!');
@@ -310,7 +338,7 @@ if (document.getElementById('setNick')) {
   };
 }
 
-// --- ТРЕД ---
+// --- ТРЕД (БЕЗ ПРИМЕНЕНИЯ ФОНА) ---
 if (document.getElementById('postList')) {
   const tid = urlParams.get('id');
   
@@ -330,10 +358,6 @@ if (document.getElementById('postList')) {
       if (!r.ok) { if (r.status === 404) { alert('Deleted'); location.href = '/'; return; } }
       const data = await r.json(); 
       document.querySelector('.window__bar span').textContent = '📄 ' + data.thread.title;
-      
-      if (currentUser) {
-         fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(res => res.json()).then(d => { if (d.user.background_url) applyCustomBg(d.user.background_url); });
-      }
 
       document.getElementById('postList').innerHTML = data.posts.map(p => {
         const url = `/profile.html?user=${encodeURIComponent(p.author_name)}`;
