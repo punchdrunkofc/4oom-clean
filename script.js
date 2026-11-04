@@ -130,7 +130,7 @@ if (document.getElementById('userName')) {
   }
 }
 
-// --- ЧАТ ---
+// --- ЧАТ НА ГЛАВНОЙ ---
 if (document.getElementById('chatMessages')) {
   resetVideoBg();
   const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
@@ -299,86 +299,158 @@ if (document.getElementById('threadList')) {
   loadThreads();
 }
 
-// --- НАСТРОЙКИ ---
-if (document.getElementById('setNick')) {
-  resetVideoBg();
-  let avC = null, bnC = null, bgC = null;
-  
-  function updatePreview() {
-    const n = document.getElementById('setNick').value || 'YourNickname', f = document.getElementById('setFont').value;
-    const pn = document.getElementById('previewName'); if(pn) { pn.textContent = n; pn.style.fontFamily = f || 'var(--font-pixel)'; }
-    const pa = document.getElementById('previewAvatar'); if(pa) pa.src = document.getElementById('setAvatar').value || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2230%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
-    const b = document.getElementById('setBanner').value;
-    const pb = document.getElementById('previewBanner'); if(pb) { pb.style.display = b ? 'block' : 'none'; if (b) pb.src = b; }
-    const bio = document.getElementById('setBio').value;
-    const pbio = document.getElementById('previewBio'); if(pbio) pbio.textContent = bio || 'This user has not written a bio yet.';
-    const pr = document.getElementById('previewRole'); if(pr) pr.innerHTML = getRoleBadge(currentUser ? currentUser.role : 'user');
-  }
-  
-  ['setNick', 'setBio'].forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', updatePreview); });
-  const sf = document.getElementById('setFont'); if(sf) sf.addEventListener('change', updatePreview);
+// --- УВЕДОМЛЕНИЯ ---
+if (document.getElementById('notifBtn')) {
+  const notifBtn = document.getElementById('notifBtn');
+  const notifDropdown = document.getElementById('notifDropdown');
+  const notifList = document.getElementById('notifList');
+  const notifCount = document.getElementById('notifCount');
 
-  const setupCrop = (fileId, containerId, imgId, btnId, ratio) => {
-    const f = document.getElementById(fileId), c = document.getElementById(containerId), i = document.getElementById(imgId), b = document.getElementById(btnId);
-    if (f && typeof Cropper !== 'undefined') {
-      f.addEventListener('change', e => { 
-        const file = e.target.files[0]; if (!file) return; 
-        const r = new FileReader(); 
-        r.onload = ev => { 
-          i.src = ev.target.result; c.style.display = 'block'; b.style.display = 'inline-block'; 
-          if (window['crop' + fileId]) window['crop' + fileId].destroy(); 
-          window['crop' + fileId] = new Cropper(i, { aspectRatio: ratio, viewMode: 1 }); 
-        }; 
-        r.readAsDataURL(file); 
-      });
+  notifBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    notifDropdown.style.display = notifDropdown.style.display === 'none' ? 'block' : 'none';
+    if (notifDropdown.style.display === 'block') loadNotifications();
+  });
+  document.addEventListener('click', (e) => {
+    if (!notifDropdown.contains(e.target) && e.target !== notifBtn) notifDropdown.style.display = 'none';
+  });
+
+  async function loadNotifications() {
+    if (!currentUser) {
+      notifList.innerHTML = '<div style="color: #888; text-align: center;">Login to see notifications.</div>';
+      notifCount.textContent = '';
+      return;
     }
-  };
-  
-  setupCrop('avatarFile', 'avatarCropperContainer', 'avatarCropperImage', 'saveAvatarBtn', 1);
-  setupCrop('bannerFile', 'bannerCropperContainer', 'bannerCropperImage', 'saveBannerBtn', 3);
-  setupCrop('bgFile', 'bgCropperContainer', 'bgCropperImage', 'saveBgBtn', 16/9);
-
-  window.applyAvatarCrop = () => { if (!window.cropavatarFile) return; document.getElementById('setAvatar').value = window.cropavatarFile.getCroppedCanvas({ width: 200, height: 200 }).toDataURL('image/jpeg', 0.85); document.getElementById('avatarCropperContainer').style.display = 'none'; document.getElementById('saveAvatarBtn').style.display = 'none'; updatePreview(); };
-  window.applyBannerCrop = () => { if (!window.cropbannerFile) return; document.getElementById('setBanner').value = window.cropbannerFile.getCroppedCanvas({ width: 1200, height: 400 }).toDataURL('image/jpeg', 0.85); document.getElementById('bannerCropperContainer').style.display = 'none'; document.getElementById('saveBannerBtn').style.display = 'none'; updatePreview(); };
-  
-  window.applyBgCrop = () => {
-    if (!window.cropbgFile) return;
-    const b = window.cropbgFile.getCroppedCanvas({ width: 2560, height: 1440, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }).toDataURL('image/jpeg', 0.9);
-    document.getElementById('setBg').value = b;
-    document.getElementById('bgCropperContainer').style.display = 'none'; 
-    document.getElementById('saveBgBtn').style.display = 'none';
-    applyCustomBg(b);
-    if (window.cropbgFile) { window.cropbgFile.destroy(); window.cropbgFile = null; }
-  };
-
-  if (currentUser) {
-    document.getElementById('setNick').value = currentUser.login;
-    fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(d => { 
-      if (d.user.avatar_url) document.getElementById('setAvatar').value = d.user.avatar_url; 
-      if (d.user.banner_url) document.getElementById('setBanner').value = d.user.banner_url; 
-      if (d.user.background_url) { 
-        document.getElementById('setBg').value = d.user.background_url; 
-        applyCustomBg(d.user.background_url);
-      } 
-      document.getElementById('setBio').value = d.user.bio || ''; 
-      if (document.getElementById('setFont')) document.getElementById('setFont').value = d.user.font_family || ''; 
-      updatePreview(); 
-    });
-  }
-  
-  window.saveSettings = async () => {
-    if (!currentUser) return alert('Login first!');
-    const n = document.getElementById('setNick').value.trim(), a = document.getElementById('setAvatar').value, b = document.getElementById('setBanner').value, bg = document.getElementById('setBg').value, bio = document.getElementById('setBio').value.trim(), f = document.getElementById('setFont').value;
-    if (!n) return alert('Nickname empty');
     try {
-      const r = await fetch('/api/profile', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: currentUser.id, display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: bg }) });
-      if (!r.ok) throw new Error('Save error');
-      currentUser.login = n; currentUser.avatar = a; currentUser.font = f; localStorage.setItem('4oom_user', JSON.stringify(currentUser)); location.href = '/';
+      const res = await fetch('/api/friends/incoming?user_id=' + currentUser.id);
+      const requests = await res.json();
+      if (!requests || requests.length === 0) {
+        notifList.innerHTML = '<div style="color: #888; text-align: center;">No new notifications.</div>';
+        notifCount.textContent = '';
+        return;
+      }
+      notifCount.textContent = ` (${requests.length})`;
+      notifList.innerHTML = requests.map(r => `
+        <div style="padding: 6px; border-bottom: 1px dotted #ccc; display: flex; align-items: center; gap: 6px;">
+          <img src="${r.avatar_url || '...'}" style="width: 20px; height: 20px;">
+          <span><b>${escapeHtml(r.display_name)}</b> wants to be friends!</span>
+          <button class="neon-btn" style="padding: 1px 4px; font-size: 10px; margin-left: auto;" onclick="acceptFriend(${r.id})">Accept</button>
+        </div>
+      `).join('');
+    } catch(e) { notifList.innerHTML = '<div style="color: red;">Error loading notifications.</div>'; }
+  }
+
+  window.acceptFriend = async function(friendId) {
+    if (!confirm('Accept friend request?')) return;
+    try {
+      const res = await fetch('/api/friends/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: currentUser.id, friend_id: friendId }) });
+      if (!res.ok) throw new Error('Error');
+      alert('Friend added!');
+      loadNotifications();
     } catch(e) { alert(e.message); }
   };
+
+  loadNotifications();
 }
 
-// --- ТРЕД ---
+// --- МЕССЕНДЖЕР (ICQ STYLE) ---
+if (document.getElementById('msgrBtn')) {
+  const msgrBtn = document.getElementById('msgrBtn');
+  const msgrModal = document.getElementById('msgrModal');
+  const msgrFriendsList = document.getElementById('msgrFriendsList');
+  const msgrChatHeader = document.getElementById('msgrChatHeader');
+  const msgrChatBox = document.getElementById('msgrChatBox');
+  const msgrInput = document.getElementById('msgrInput');
+  const msgrSendBtn = document.getElementById('msgrSendBtn');
+  const msgrForm = document.getElementById('msgrForm');
+  const msgrEmojiBtn = document.getElementById('msgrEmojiBtn');
+  const msgrEmojiPanel = document.getElementById('msgrEmojiPanel');
+  
+  let activeChatId = null;
+  let msgrInterval = null;
+
+  msgrBtn.addEventListener('click', () => {
+    if (!currentUser) return alert('Login to use messenger!');
+    msgrModal.style.display = 'flex';
+    loadMsgrFriends();
+  });
+
+  msgrEmojiBtn.addEventListener('click', () => {
+    msgrEmojiPanel.style.display = msgrEmojiPanel.style.display === 'none' ? 'flex' : 'none';
+  });
+
+  window.insertEmoji = function(emoji) {
+    msgrInput.value += emoji;
+    msgrInput.focus();
+    msgrEmojiPanel.style.display = 'none';
+  };
+
+  async function loadMsgrFriends() {
+    msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888;">Loading...</div>';
+    try {
+      const res = await fetch('/api/friends/list?user_id=' + currentUser.id);
+      const friends = await res.json();
+      if (!friends || friends.length === 0) {
+        msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">No friends yet. Add someone on the main page.</div>';
+        return;
+      }
+      msgrFriendsList.innerHTML = friends.map(f => `
+        <div style="padding: 6px; border-bottom: 1px dotted #ccc; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="openMsgrChat(${f.id}, '${f.display_name}')">
+          <img src="${f.avatar_url || '...'}" style="width: 20px; height: 20px; border: 1px solid #808080;">
+          <span style="font-size: 12px;">${formatName(f.display_name, f.role, null)}</span>
+        </div>
+      `).join('');
+    } catch(e) { msgrFriendsList.innerHTML = 'Error loading friends.'; }
+  }
+
+  window.openMsgrChat = async function(friendId, friendName) {
+    activeChatId = friendId;
+    msgrChatHeader.textContent = `Chat with ${friendName}`;
+    msgrInput.disabled = false;
+    msgrSendBtn.disabled = false;
+    msgrChatBox.innerHTML = '<div style="color: #888; text-align: center;">Loading messages...</div>';
+    
+    if (msgrInterval) clearInterval(msgrInterval);
+    await loadMsgrMessages();
+    msgrInterval = setInterval(loadMsgrMessages, 3000);
+  };
+
+  async function loadMsgrMessages() {
+    if (!activeChatId) return;
+    try {
+      const res = await fetch(`/api/messages?sender_id=${currentUser.id}&receiver_id=${activeChatId}`);
+      const messages = await res.json();
+      if (!messages || messages.length === 0) {
+        msgrChatBox.innerHTML = '<div style="color: #888; text-align: center; margin-top: 10px;">No messages yet. Say hi!</div>';
+      } else {
+        msgrChatBox.innerHTML = messages.map(m => {
+          const isMe = m.sender_id === currentUser.id;
+          return `<div style="margin-bottom: 6px; text-align: ${isMe ? 'right' : 'left'};">
+            <span style="background: ${isMe ? '#c0c0c0' : '#e0e0e0'}; padding: 2px 6px; border: 1px solid #808080; border-radius: 4px; display: inline-block; max-width: 80%; word-wrap: break-word;">
+              ${escapeHtml(m.body)}
+            </span>
+          </div>`;
+        }).join('');
+        msgrChatBox.scrollTop = msgrChatBox.scrollHeight;
+      }
+    } catch(e) { console.error(e); }
+  }
+
+  msgrForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = msgrInput.value.trim();
+    if (!text || !activeChatId) return;
+    
+    msgrInput.value = '';
+    msgrEmojiPanel.style.display = 'none';
+    try {
+      await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: currentUser.id, receiver_id: activeChatId, body: text }) });
+      loadMsgrMessages();
+    } catch(e) { alert('Error sending message'); }
+  });
+}
+
+// --- СТРАНИЦА ТРЕДА ---
 if (document.getElementById('postList')) {
   resetVideoBg();
   const tid = urlParams.get('id');
