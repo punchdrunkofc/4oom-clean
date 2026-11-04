@@ -191,15 +191,13 @@ export default {
       .role-moderator { background: #006400; }
       .role-editor { background: #000080; }
 
-      /* --- ОБНОВЛЕННАЯ РАДУГА --- */
+      /* --- РАДУГА --- */
       .creator-name {
         font-weight: bold;
-        /* Градиент строго слева направо (to right) */
         background: linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000);
-        background-size: 200% auto; /* Растягиваем фон */
+        background-size: 200% auto;
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        /* Замедлили анимацию до 8 секунд */
         animation: rainbow-anim 8s linear infinite;
       }
       @keyframes rainbow-anim {
@@ -207,18 +205,37 @@ export default {
         100% { background-position: 200% center; }
       }
 
+      /* --- GLITTER ТЕКСТУРА --- */
       .role-creator-glitter {
         display: inline-block;
         padding: 2px 8px;
         border-radius: 4px;
-        background: #ff69b4;
+        color: #fff;
+        font-weight: bold;
+        text-shadow: 1px 1px 1px #000;
         border: 2px dashed #fff;
-        box-shadow: 0 0 5px #ff69b4, 0 0 10px #ff69b4;
-        animation: glitter-pulse 1.5s infinite alternate;
+        background-color: #ff69b4; /* Розовый фон */
+        
+        /* Наложение текстуры блеска (маленькие белые точки) */
+        background-image: 
+          radial-gradient(circle at 20% 30%, #fff 1px, transparent 1px),
+          radial-gradient(circle at 80% 70%, #fff 1.5px, transparent 1.5px),
+          radial-gradient(circle at 40% 80%, #fff 1px, transparent 1px),
+          radial-gradient(circle at 70% 20%, #fff 1px, transparent 1px);
+        background-size: 15px 15px; /* Размер текстуры */
+        
+        /* Анимация: свечение + движение блесток */
+        animation: glitter-glow 1.5s infinite alternate, glitter-move 2s linear infinite;
       }
-      @keyframes glitter-pulse {
+      
+      @keyframes glitter-glow {
         0% { box-shadow: 0 0 5px #ff69b4, 0 0 10px #ff69b4; border-color: #fff; }
         100% { box-shadow: 0 0 15px #ff69b4, 0 0 20px #ffb6c1; border-color: #ffe4e1; }
+      }
+      
+      @keyframes glitter-move {
+        0% { background-position: 0 0, 0 0, 0 0, 0 0; }
+        100% { background-position: 15px 15px, 15px 15px, 15px 15px, 15px 15px; }
       }
 
       .delete-btn { background: #ffcccc; border: 1px solid #800000; color: #800000; font-size: 10px; padding: 1px 4px; cursor: pointer; margin-left: 8px; white-space: nowrap; }
