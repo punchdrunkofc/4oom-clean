@@ -16,9 +16,18 @@ function getRoleBadge(role) {
   return `<span class="role-badge role-${role}">${labels[role]}</span>`;
 }
 
-function formatName(name, role) {
-  if (role === 'creator') return `<span class="creator-name">${escapeHtml(name)}</span>`;
-  return escapeHtml(name);
+// Применяем шрифт и радугу
+function formatName(name, role, font) {
+  let style = "";
+  if (font) {
+    style = `font-family: '${font}', sans-serif;`;
+  }
+  
+  if (role === 'creator') {
+    // Для креатора оставляем радугу, но применяем его шрифт
+    return `<span class="creator-name" style="${style}">${escapeHtml(name)}</span>`;
+  }
+  return `<span style="${style}">${escapeHtml(name)}</span>`;
 }
 
 // --- СТРАНИЦА ПРОФИЛЯ ---
@@ -37,7 +46,7 @@ if (document.getElementById('userName')) {
         const { user, threads } = data;
         
         document.title = `4OOM — ${user.display_name}`;
-        document.getElementById('userName').innerHTML = formatName(user.display_name, user.role) + ' ' + getRoleBadge(user.role);
+        document.getElementById('userName').innerHTML = formatName(user.display_name, user.role, user.font_family) + ' ' + getRoleBadge(user.role);
         document.getElementById('userAvatar').src = user.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E';
         
         if (user.banner_url) {
@@ -122,7 +131,7 @@ if (document.getElementById('threadList')) {
       <a href="/profile.html?user=${encodeURIComponent(currentUser.login)}">
         <img src="${currentUser.avatar || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect width=%2280%22 height=%2280%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" class="avatar" alt="avatar">
       </a>
-      <p class="profile__name"><a href="/profile.html?user=${encodeURIComponent(currentUser.login)}" style="text-decoration:none; color:inherit;">${formatName(currentUser.login, currentUser.role)}</a> ${getRoleBadge(currentUser.role)}</p>
+      <p class="profile__name"><a href="/profile.html?user=${encodeURIComponent(currentUser.login)}" style="text-decoration:none; color:inherit;">${formatName(currentUser.login, currentUser.role, currentUser.font)}</a> ${getRoleBadge(currentUser.role)}</p>
       <p class="profile__status">online · github user</p>
       <button class="neon-btn" onclick="location.href='/settings.html'">settings</button>
       <button class="neon-btn" onclick="localStorage.clear();location.reload()">logout</button>
@@ -163,7 +172,7 @@ if (document.getElementById('threadList')) {
         return `<li class="thread">
           <a href="/thread.html?id=${t.id}">
             <span class="thread__title">${sectionBadge}${escapeHtml(t.title)}</span>
-            <span class="thread__meta">by <a href="/profile.html?user=${encodeURIComponent(t.author_name)}" style="text-decoration:none; color:inherit;">${formatName(t.author_name, t.author_role)}</a> · ${t.reply_count} replies</span>
+            <span class="thread__meta">by <a href="/profile.html?user=${encodeURIComponent(t.author_name)}" style="text-decoration:none; color:inherit;">${formatName(t.author_name, t.author_role, t.author_font)}</a> · ${t.reply_count} replies</span>
           </a>
           ${deleteBtn}
         </li>`;
@@ -197,6 +206,7 @@ if (document.getElementById('setNick')) {
     fetch('/api/user?login=' + encodeURIComponent(currentUser.login)).then(r => r.json()).then(data => {
       document.getElementById('setBanner').value = data.user.banner_url || '';
       document.getElementById('setBio').value = data.user.bio || '';
+      if(document.getElementById('setFont')) document.getElementById('setFont').value = data.user.font_family || '';
     });
   }
 
@@ -206,17 +216,22 @@ if (document.getElementById('setNick')) {
     const avatar = document.getElementById('setAvatar').value.trim();
     const banner = document.getElementById('setBanner').value.trim();
     const bio = document.getElementById('setBio').value.trim();
+    const font = document.getElementById('setFont') ? document.getElementById('setFont').value.trim() : '';
+    
     if (!nick) return alert('Nickname cannot be empty');
     try {
       const res = await fetch('/api/profile', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ user_id: currentUser.id, display_name: nick, avatar_url: avatar, banner_url: banner, bio: bio }) 
+        body: JSON.stringify({ user_id: currentUser.id, display_name: nick, avatar_url: avatar, banner_url: banner, bio: bio, font_family: font }) 
       });
       if (!res.ok) throw new Error('Save error');
+      
       currentUser.login = nick; 
-      currentUser.avatar = avatar; 
+      currentUser.avatar = avatar;
+      currentUser.font = font;
       localStorage.setItem('4oom_user', JSON.stringify(currentUser));
+      
       alert('Settings saved!'); 
       location.href = '/';
     } catch(e) { alert('Error: ' + e.message); }
@@ -248,13 +263,12 @@ if (document.getElementById('postList')) {
       document.querySelector('.window__bar span').textContent = '📄 ' + data.thread.title;
       
       document.getElementById('postList').innerHTML = data.posts.map(function(p) {
-        // ДЕЛАЕМ АВАТАРКУ И НИК КЛИКАБЕЛЬНЫМИ
         const profileUrl = `/profile.html?user=${encodeURIComponent(p.author_name)}`;
         let avatarHtml = p.author_avatar 
             ? `<a href="${profileUrl}"><img src="${p.author_avatar}" class="post__avatar" alt="avatar"></a>` 
             : `<a href="${profileUrl}"><div style="width:24px; height:24px; background:#ccc; border: 1px solid #808080; display:inline-block; vertical-align: middle;"></div></a>`;
         
-        const nameLink = `<a href="${profileUrl}" style="text-decoration:none; color:inherit;">${formatName(p.author_name, p.author_role)}</a>`;
+        const nameLink = `<a href="${profileUrl}" style="text-decoration:none; color:inherit;">${formatName(p.author_name, p.author_role, p.author_font)}</a>`;
         
         const canDelete = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || p.author_name === currentUser.login);
         const deleteBtn = canDelete ? `<button class="delete-btn" onclick="deletePost(${p.id})">delete</button>` : '';
