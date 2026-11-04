@@ -44,7 +44,7 @@ export default {
           dbUser = await env.DB.prepare(`SELECT * FROM users WHERE github_id = ?`).bind(user.id).first();
         }
 
-        const userJson = JSON.stringify({ id: dbUser.id, login: dbUser.display_name, avatar: dbUser.avatar_url, role: dbUser.role });
+        const userJson = JSON.stringify({ id: dbUser.id, login: dbUser.display_name, avatar: dbUser.avatar_url, role: dbUser.role, font: dbUser.font_family });
 
         return new Response(`<!DOCTYPE html><html><body><script>
           localStorage.setItem('4oom_user', JSON.stringify(${userJson}));
@@ -71,7 +71,7 @@ export default {
         const login = url.searchParams.get('login');
         if (!login) return new Response(JSON.stringify({ error: 'No login provided' }), { status: 400, headers: cors });
         
-        const user = await env.DB.prepare(`SELECT id, display_name, avatar_url, banner_url, bio, role FROM users WHERE display_name = ?`).bind(login).first();
+        const user = await env.DB.prepare(`SELECT id, display_name, avatar_url, banner_url, bio, role, font_family FROM users WHERE display_name = ?`).bind(login).first();
         if (!user) return new Response(JSON.stringify({ error: 'User not found' }), { status: 404, headers: cors });
 
         const { results: threads } = await env.DB.prepare(`
@@ -87,8 +87,8 @@ export default {
       if (url.pathname === '/api/profile' && request.method === 'POST') {
         const body = await request.json();
         if (!body.user_id) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
-        await env.DB.prepare(`UPDATE users SET display_name = ?, avatar_url = ?, banner_url = ?, bio = ? WHERE id = ?`)
-          .bind(body.display_name, body.avatar_url, body.banner_url || null, body.bio || null, body.user_id).run();
+        await env.DB.prepare(`UPDATE users SET display_name = ?, avatar_url = ?, banner_url = ?, bio = ?, font_family = ? WHERE id = ?`)
+          .bind(body.display_name, body.avatar_url, body.banner_url || null, body.bio || null, body.font_family || null, body.user_id).run();
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
@@ -131,7 +131,7 @@ export default {
         const my = url.searchParams.get('my');
         
         let query = `
-          SELECT t.*, u.role AS author_role,
+          SELECT t.*, u.role AS author_role, u.font_family AS author_font,
           (SELECT id FROM posts p WHERE p.thread_id = t.id ORDER BY p.created_at ASC LIMIT 1) AS first_post_id,
           (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count
           FROM threads t 
@@ -172,7 +172,7 @@ export default {
         if (!thread) return new Response(JSON.stringify({ error: 'Thread not found' }), { status: 404, headers: cors });
         
         const { results } = await env.DB.prepare(`
-          SELECT p.*, u.avatar_url AS author_avatar, u.role AS author_role
+          SELECT p.*, u.avatar_url AS author_avatar, u.role AS author_role, u.font_family AS author_font
           FROM posts p LEFT JOIN users u ON p.author_name = u.display_name
           WHERE p.thread_id = ? ORDER BY p.created_at ASC
         `).bind(threadId).all();
