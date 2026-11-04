@@ -100,16 +100,29 @@ export default {
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
 
+      // Треды (с фильтрацией по разделу)
       if (url.pathname === '/api/threads' && request.method === 'GET') {
-        const { results } = await env.DB.prepare(`
+        const section = url.searchParams.get('section');
+        
+        let query = `
           SELECT t.*, u.role AS author_role,
           (SELECT id FROM posts p WHERE p.thread_id = t.id ORDER BY p.created_at ASC LIMIT 1) AS first_post_id,
           (SELECT COUNT(*) FROM posts p WHERE p.thread_id = t.id) AS reply_count
           FROM threads t 
           LEFT JOIN users u ON t.author_name = u.display_name
-          ORDER BY t.updated_at DESC LIMIT 100
-        `).all();
-        return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        `;
+        
+        // Если передан раздел, добавляем WHERE
+        if (section) {
+          query += ` WHERE t.section_slug = ? GROUP BY t.id HAVING reply_count > 0 ORDER BY t.updated_at DESC LIMIT 100`;
+          const { results } = await env.DB.prepare(query).bind(section).all();
+          return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        } else {
+          // Если раздела нет (главная), отдаем все треды
+          query += ` GROUP BY t.id HAVING reply_count > 0 ORDER BY t.updated_at DESC LIMIT 100`;
+          const { results } = await env.DB.prepare(query).all();
+          return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        }
       }
 
       if (url.pathname === '/api/threads' && request.method === 'POST') {
