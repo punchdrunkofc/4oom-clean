@@ -26,16 +26,18 @@ export class ChatRoom extends DurableObject {
     const url = new URL(request.url);
     const nick = url.searchParams.get('nick') || 'guest';
     const role = url.searchParams.get('role') || 'user';
+    const userId = url.searchParams.get('uid') || '0';
 
+    // Удаляем старую сессию этого же пользователя
     for (let [ws, session] of this.sessions.entries()) {
-      if (session.nick === nick) {
+      if (session.userId === userId) {
         try { ws.close(1000, 'New session opened'); } catch (e) {}
         this.sessions.delete(ws);
       }
     }
 
-    server.serializeAttachment({ nick, role });
-    this.sessions.set(server, { nick, role });
+    server.serializeAttachment({ nick, role, userId });
+    this.sessions.set(server, { nick, role, userId });
     server.send(JSON.stringify({ type: 'history', messages: this.messages }));
     
     this.broadcastOnline();
@@ -62,7 +64,8 @@ export class ChatRoom extends DurableObject {
   }
 
   broadcastOnline() {
-    const onlineUsers = Array.from(this.sessions.values()).map(s => s.nick);
+    // Собираем уникальные ники
+    const onlineUsers = [...new Set(Array.from(this.sessions.values()).map(s => s.nick))];
     const msg = JSON.stringify({ type: 'online', users: onlineUsers });
     this.ctx.getWebSockets().forEach((client) => { try { client.send(msg); } catch (e) {} });
   }
@@ -94,16 +97,17 @@ export class BugRoom extends DurableObject {
     const url = new URL(request.url);
     const nick = url.searchParams.get('nick') || 'guest';
     const role = url.searchParams.get('role') || 'user';
+    const userId = url.searchParams.get('uid') || '0';
 
     for (let [ws, session] of this.sessions.entries()) {
-      if (session.nick === nick) {
+      if (session.userId === userId) {
         try { ws.close(1000, 'New session opened'); } catch (e) {}
         this.sessions.delete(ws);
       }
     }
 
-    server.serializeAttachment({ nick, role });
-    this.sessions.set(server, { nick, role });
+    server.serializeAttachment({ nick, role, userId });
+    this.sessions.set(server, { nick, role, userId });
     server.send(JSON.stringify({ type: 'history', messages: this.messages }));
     
     return new Response(null, { status: 101, webSocket: client });
@@ -140,17 +144,19 @@ export default {
     if (url.pathname === '/api/chat/ws') {
       const nick = url.searchParams.get('nick') || 'guest';
       const role = url.searchParams.get('role') || 'user';
+      const uid = url.searchParams.get('uid') || '0';
       const id = env.CHAT_ROOM.idFromName('global');
       const stub = env.CHAT_ROOM.get(id);
-      return stub.fetch(new Request(url.origin + `/ws?nick=${encodeURIComponent(nick)}&role=${encodeURIComponent(role)}`, request));
+      return stub.fetch(new Request(url.origin + `/ws?nick=${encodeURIComponent(nick)}&role=${encodeURIComponent(role)}&uid=${encodeURIComponent(uid)}`, request));
     }
     
     if (url.pathname === '/api/bugs/ws') {
       const nick = url.searchParams.get('nick') || 'guest';
       const role = url.searchParams.get('role') || 'user';
+      const uid = url.searchParams.get('uid') || '0';
       const id = env.BUG_ROOM.idFromName('global_bugs');
       const stub = env.BUG_ROOM.get(id);
-      return stub.fetch(new Request(url.origin + `/ws?nick=${encodeURIComponent(nick)}&role=${encodeURIComponent(role)}`, request));
+      return stub.fetch(new Request(url.origin + `/ws?nick=${encodeURIComponent(nick)}&role=${encodeURIComponent(role)}&uid=${encodeURIComponent(uid)}`, request));
     }
 
     // --- AUTH (GITHUB) ---
