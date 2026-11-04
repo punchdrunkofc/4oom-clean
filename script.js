@@ -37,13 +37,8 @@ function getRoleBadge(role) {
 function formatName(name, role, font) {
   const f = font && font.trim() !== '' ? font : 'var(--font-pixel)';
   const s = `font-family: ${f};`;
-  
-  if (role === 'creator') {
-    return `<span class="creator-name" style="${s}">${escapeHtml(name)}</span>`;
-  } 
-  if (role === 'moderator') {
-    return `<span class="moderator-name" style="${s}">${escapeHtml(name)}</span>`;
-  }
+  if (role === 'creator') return `<span class="creator-name" style="${s}">${escapeHtml(name)}</span>`;
+  if (role === 'moderator') return `<span class="moderator-name" style="${s}">${escapeHtml(name)}</span>`;
   return `<span style="${s}">${escapeHtml(name)}</span>`;
 }
 
@@ -90,11 +85,8 @@ if (document.getElementById('userName')) {
       if (user.display_name === 'PunchDrunk' || user.role === 'creator') {
         applyCustomBg('/bg.mp4');
       } else {
-        if (user.background_url) {
-          applyCustomBg(user.background_url);
-        } else {
-          resetVideoBg();
-        }
+        if (user.background_url) applyCustomBg(user.background_url);
+        else resetVideoBg();
       }
       
       if (currentUser && currentUser.login === user.display_name) {
@@ -165,6 +157,30 @@ if (document.getElementById('chatMessages')) {
 // --- ГЛАВНАЯ ---
 if (document.getElementById('threadList')) {
   resetVideoBg();
+  
+  // ЗАГРУЗКА ПОЛЬЗОВАТЕЛЕЙ
+  fetch('/api/users').then(r => r.json()).then(users => {
+    const list = document.getElementById('usersList');
+    if (!list) return;
+    if (!users || users.length === 0) {
+      list.innerHTML = '<div style="text-align: center; color: #888;">No users found.</div>';
+      return;
+    }
+    list.innerHTML = users.map(u => {
+      const isMe = currentUser && currentUser.login === u.display_name;
+      const friendBtn = (!isMe && currentUser) ? `<button class="neon-btn" style="padding: 2px 6px; font-size: 10px; margin-left: 8px;" onclick="sendFriendRequest(${u.id})">+ Add Friend</button>` : '';
+      return `<div style="display: flex; align-items: center; justify-content: space-between; padding: 6px; border-bottom: 1px dotted #ccc;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <img src="${u.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect width=%2224%22 height=%2224%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2212%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?\u003C/text%3E%3C/svg%3E'}" style="width: 24px; height: 24px; border: 1px solid #808080;">
+          <a href="/profile.html?user=${encodeURIComponent(u.display_name)}" style="text-decoration: none;">${formatName(u.display_name, u.role, null)}</a>
+          ${getRoleBadge(u.role)}
+        </div>
+        <div>${friendBtn}</div>
+      </div>`;
+    }).join('');
+  }).catch(e => console.error('Users load error', e));
+
+  // ОСТАЛЬНАЯ ЛОГИКА ГЛАВНОЙ
   fetch('/api/sections').then(r => r.json()).then(s => { 
     dbSections = s.map(x => x.section_slug); 
     const sel = document.getElementById('sectionSelect'); 
@@ -384,3 +400,21 @@ if (document.getElementById('postList')) {
   });
   loadPosts();
 }
+
+// ГЛОБАЛЬНАЯ ФУНКЦИЯ ДЛЯ ДРУЗЕЙ
+window.sendFriendRequest = async function(friendId) {
+  if (!currentUser) return alert('Login first!');
+  if (!confirm('Send friend request?')) return;
+  try {
+    const res = await fetch('/api/friends/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: currentUser.id, friend_id: friendId })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error);
+    }
+    alert('Friend request sent!');
+  } catch(e) { alert('Error: ' + e.message); }
+};
