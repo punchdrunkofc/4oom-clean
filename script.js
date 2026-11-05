@@ -129,36 +129,65 @@ if (document.getElementById('threadList')) {
   if (document.getElementById('chatMessages')) {
     const chatMsgs = document.getElementById('chatMessages'), chatForm = document.getElementById('chatForm'), chatInput = document.getElementById('chatInput'), onlineUsers = document.getElementById('onlineUsers');
     if (currentUser) {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
-      ws.onopen = () => { chatMsgs.innerHTML = ''; };
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'history') {
-          chatMsgs.innerHTML = '';
-          if (!Array.isArray(data.messages) || data.messages.length === 0) { chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No messages yet.</div>'; } 
-          else {
-            data.messages.forEach(m => {
-              const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
-              div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="text-decoration: none;">${formatName(m.user, m.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(m.text)}</span>`;
-              chatMsgs.appendChild(div);
-            });
-            chatMsgs.scrollTop = chatMsgs.scrollHeight;
+      let lobbyWs = null;
+      let lobbyReconnectTimer = null;
+      let lobbyReconnectDelay = 2000;
+
+      function connectLobbyChat() {
+        if (lobbyWs && (lobbyWs.readyState === WebSocket.OPEN || lobbyWs.readyState === WebSocket.CONNECTING)) return;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        lobbyWs = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
+        
+        lobbyWs.onopen = () => {
+          lobbyReconnectDelay = 2000;
+          onlineUsers.innerHTML = '🟢 Connected...';
+        };
+        
+        lobbyWs.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === 'history') {
+            chatMsgs.innerHTML = '';
+            if (!Array.isArray(data.messages) || data.messages.length === 0) {
+              chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No messages yet.</div>';
+            } else {
+              data.messages.forEach(m => {
+                const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
+                div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="text-decoration: none;">${formatName(m.user, m.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(m.text)}</span>`;
+                chatMsgs.appendChild(div);
+              });
+              chatMsgs.scrollTop = chatMsgs.scrollHeight;
+            }
           }
-        }
-        if (data.type === 'chat') {
-          const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
-          div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="text-decoration: none;">${formatName(data.user, data.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(data.text)}</span>`;
-          chatMsgs.appendChild(div); chatMsgs.scrollTop = chatMsgs.scrollHeight;
-        }
-        if (data.type === 'online') {
-          onlineUsers.innerHTML = data.users.length > 0 ? '🟢 Online: ' + data.users.map(u => `<a href="/profile.html?user=${encodeURIComponent(u)}" style="color: inherit;">${escapeHtml(u)}</a>`).join(', ') : '⚫ No one online';
-        }
-      };
-      ws.onclose = () => { onlineUsers.innerHTML = '⚫ Disconnected'; setTimeout(() => location.reload(), 5000); };
+          if (data.type === 'chat') {
+            const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
+            div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="text-decoration: none;">${formatName(data.user, data.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(data.text)}</span>`;
+            chatMsgs.appendChild(div); chatMsgs.scrollTop = chatMsgs.scrollHeight;
+          }
+          if (data.type === 'online') {
+            onlineUsers.innerHTML = data.users.length > 0 ? '🟢 Online: ' + data.users.map(u => `<a href="/profile.html?user=${encodeURIComponent(u)}" style="color: inherit;">${escapeHtml(u)}</a>`).join(', ') : '⚫ No one online';
+          }
+        };
+        
+        lobbyWs.onclose = () => {
+          onlineUsers.innerHTML = '⚫ Reconnecting...';
+          if (lobbyReconnectTimer) clearTimeout(lobbyReconnectTimer);
+          lobbyReconnectTimer = setTimeout(() => {
+            connectLobbyChat();
+            lobbyReconnectDelay = Math.min(lobbyReconnectDelay * 1.5, 15000);
+          }, lobbyReconnectDelay);
+        };
+        
+        lobbyWs.onerror = () => { try { lobbyWs.close(); } catch(e) {} };
+      }
+      
+      connectLobbyChat();
+      
       chatForm.addEventListener('submit', e => {
         e.preventDefault(); const t = chatInput.value.trim();
-        if (t && ws.readyState === WebSocket.OPEN) { chatInput.value = ''; ws.send(JSON.stringify({ text: t })); }
+        if (t && lobbyWs && lobbyWs.readyState === WebSocket.OPEN) {
+          chatInput.value = '';
+          lobbyWs.send(JSON.stringify({ text: t }));
+        }
       });
     } else {
       chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">Please login to chat.</div>';
@@ -172,41 +201,58 @@ if (document.getElementById('threadList')) {
     const bugMsgs = document.getElementById('bugMessages'), bugForm = document.getElementById('bugForm'), bugInput = document.getElementById('bugInput');
     
     if (currentUser) {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsBug = new WebSocket(`${protocol}//${window.location.host}/api/bugs/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
-      
-      wsBug.onopen = () => { bugMsgs.innerHTML = ''; };
-      
-      wsBug.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+      let bugWs = null;
+      let bugReconnectTimer = null;
+      let bugReconnectDelay = 2000;
+
+      function connectBugChat() {
+        if (bugWs && (bugWs.readyState === WebSocket.OPEN || bugWs.readyState === WebSocket.CONNECTING)) return;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        bugWs = new WebSocket(`${protocol}//${window.location.host}/api/bugs/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
         
-        if (data.type === 'history') {
-          bugMsgs.innerHTML = '';
-          if (!Array.isArray(data.messages) || data.messages.length === 0) { 
-            bugMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No reports yet.</div>'; 
-          } else {
-            data.messages.forEach(m => {
-              const div = document.createElement('div'); 
-              div.style.marginBottom = '6px'; 
-              div.style.fontSize = '12px';
-              div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="text-decoration: none;">${formatName(m.user, m.role, null)}:</a> <span style="font-family: 'Times New Roman', serif; color: #800000;">${escapeHtml(m.text)}</span>`;
-              bugMsgs.appendChild(div);
-            });
+        bugWs.onopen = () => { bugReconnectDelay = 2000; };
+        
+        bugWs.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'history') {
+            bugMsgs.innerHTML = '';
+            if (!Array.isArray(data.messages) || data.messages.length === 0) { 
+              bugMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No reports yet.</div>'; 
+            } else {
+              data.messages.forEach(m => {
+                const div = document.createElement('div'); 
+                div.style.marginBottom = '6px'; 
+                div.style.fontSize = '12px';
+                div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="text-decoration: none;">${formatName(m.user, m.role, null)}:</a> <span style="font-family: 'Times New Roman', serif; color: #800000;">${escapeHtml(m.text)}</span>`;
+                bugMsgs.appendChild(div);
+              });
+              bugMsgs.scrollTop = bugMsgs.scrollHeight;
+            }
+          }
+          
+          if (data.type === 'chat') {
+            const div = document.createElement('div'); 
+            div.style.marginBottom = '6px'; 
+            div.style.fontSize = '12px';
+            div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="text-decoration: none;">${formatName(data.user, data.role, null)}:</a> <span style="font-family: 'Times New Roman', serif; color: #800000;">${escapeHtml(data.text)}</span>`;
+            bugMsgs.appendChild(div); 
             bugMsgs.scrollTop = bugMsgs.scrollHeight;
           }
-        }
+        };
         
-        if (data.type === 'chat') {
-          const div = document.createElement('div'); 
-          div.style.marginBottom = '6px'; 
-          div.style.fontSize = '12px';
-          div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="text-decoration: none;">${formatName(data.user, data.role, null)}:</a> <span style="font-family: 'Times New Roman', serif; color: #800000;">${escapeHtml(data.text)}</span>`;
-          bugMsgs.appendChild(div); 
-          bugMsgs.scrollTop = bugMsgs.scrollHeight;
-        }
-      };
+        bugWs.onclose = () => {
+          if (bugReconnectTimer) clearTimeout(bugReconnectTimer);
+          bugReconnectTimer = setTimeout(() => {
+            connectBugChat();
+            bugReconnectDelay = Math.min(bugReconnectDelay * 1.5, 15000);
+          }, bugReconnectDelay);
+        };
+        
+        bugWs.onerror = () => { try { bugWs.close(); } catch(e) {} };
+      }
       
-      wsBug.onclose = () => { bugMsgs.innerHTML = '⚫ Disconnected'; setTimeout(() => location.reload(), 5000); };
+      connectBugChat();
       
       bugForm.addEventListener('submit', e => {
         e.preventDefault(); 
@@ -215,9 +261,9 @@ if (document.getElementById('threadList')) {
         
         const confirmed = confirm("⚠️ WARNING!\n\nThis chat is EXCLUSIVELY for reporting bugs and errors.\n\nIt is NOT for chatting, flooding, or off-topic discussions. Are you sure you want to send this message?");
         
-        if (confirmed && wsBug.readyState === WebSocket.OPEN) { 
+        if (confirmed && bugWs && bugWs.readyState === WebSocket.OPEN) { 
           bugInput.value = ''; 
-          wsBug.send(JSON.stringify({ text: t })); 
+          bugWs.send(JSON.stringify({ text: t })); 
         }
       });
     } else {
@@ -402,12 +448,14 @@ if (document.getElementById('notifBtn')) {
   loadNotifications();
 }
 
-// ================= 4. МЕССЕНДЖЕР (ICQ STYLE) =================
-if (document.getElementById('msgrBtn')) {
+// ================= 4. МЕССЕНДЖЕР (отдельная страница + старый modal) =================
+if (document.getElementById('msgrFriendsList')) {
   const msgrBtn = document.getElementById('msgrBtn');
   const msgrModal = document.getElementById('msgrModal');
   const msgrFriendsList = document.getElementById('msgrFriendsList');
   const msgrChatHeader = document.getElementById('msgrChatHeader');
+  const msgrChatHeaderText = document.getElementById('msgrChatHeaderText') || msgrChatHeader;
+  const msgrChatStatus = document.getElementById('msgrChatStatus');
   const msgrChatBox = document.getElementById('msgrChatBox');
   const msgrInput = document.getElementById('msgrInput');
   const msgrSendBtn = document.getElementById('msgrSendBtn');
@@ -416,53 +464,124 @@ if (document.getElementById('msgrBtn')) {
   const msgrEmojiPanel = document.getElementById('msgrEmojiPanel');
   
   let activeChatId = null;
+  let activeChatName = null;
   let msgrInterval = null;
+  let onlineNicks = new Set();
 
-  msgrBtn.addEventListener('click', () => {
-    if (!currentUser) return alert('Login to use messenger!');
-    msgrModal.style.display = 'flex';
-    loadMsgrFriends();
-  });
+  // Кнопка на главной — переход на страницу сообщений
+  if (msgrBtn) {
+    msgrBtn.addEventListener('click', () => {
+      if (!currentUser) return alert('Login to use messenger!');
+      location.href = '/messages.html';
+    });
+  }
 
-  msgrEmojiBtn.addEventListener('click', () => {
-    msgrEmojiPanel.style.display = msgrEmojiPanel.style.display === 'none' ? 'flex' : 'none';
-  });
+  if (msgrEmojiBtn) {
+    msgrEmojiBtn.addEventListener('click', () => {
+      msgrEmojiPanel.style.display = msgrEmojiPanel.style.display === 'none' ? 'flex' : 'none';
+    });
+  }
 
   window.insertEmoji = function(emoji) {
+    if (!msgrInput) return;
     msgrInput.value += emoji;
     msgrInput.focus();
-    msgrEmojiPanel.style.display = 'none';
+    if (msgrEmojiPanel) msgrEmojiPanel.style.display = 'none';
   };
 
+  async function fetchOnlineUsers() {
+    try {
+      const res = await fetch('/api/online');
+      const data = await res.json();
+      onlineNicks = new Set(Array.isArray(data.users) ? data.users : []);
+    } catch (e) {
+      onlineNicks = new Set();
+    }
+  }
+
+  function isOnline(nick) {
+    return onlineNicks.has(nick);
+  }
+
+  function statusHtml(nick) {
+    return isOnline(nick)
+      ? '<span style="color: #008000; font-size: 11px;">● online</span>'
+      : '<span style="color: #888; font-size: 11px;">○ offline</span>';
+  }
+
   async function loadMsgrFriends() {
+    if (!currentUser) {
+      msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">Please login.</div>';
+      return;
+    }
     msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888;">Loading...</div>';
     try {
+      await fetchOnlineUsers();
       const res = await fetch('/api/friends/list?user_id=' + currentUser.id);
       const friends = await res.json();
       if (!Array.isArray(friends) || friends.length === 0) {
         msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">No friends yet. Add someone on the main page.</div>';
         return;
       }
-      msgrFriendsList.innerHTML = friends.map(f => `
-        <div style="padding: 6px; border-bottom: 1px dotted #ccc; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="openMsgrChat(${f.id}, '${f.display_name}')">
-          <img src="${f.avatar_url || '...'}" style="width: 20px; height: 20px; border: 1px solid #808080;">
-          <span style="font-size: 12px;">${formatName(f.display_name, f.role, null)}</span>
-        </div>
-      `).join('');
-    } catch(e) { msgrFriendsList.innerHTML = 'Error loading friends.'; }
+      msgrFriendsList.innerHTML = friends.map(f => {
+        const safeName = escapeHtml(f.display_name).replace(/'/g, "\\'");
+        return `
+        <div style="padding: 6px; border-bottom: 1px dotted #ccc; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="openMsgrChat(${f.id}, '${safeName}')">
+          <img src="${f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2220%22 height=%2220%22 fill=%22%23ccc%22/%3E%3C/svg%3E'}" style="width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover;">
+          <div style="flex-grow: 1; min-width: 0;">
+            <div style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${formatName(f.display_name, f.role, null)}</div>
+            <div>${statusHtml(f.display_name)}</div>
+          </div>
+        </div>`;
+      }).join('');
+    } catch(e) {
+      msgrFriendsList.innerHTML = '<div style="color: red; text-align: center;">Error loading friends.</div>';
+    }
   }
 
   window.openMsgrChat = async function(friendId, friendName) {
     activeChatId = friendId;
-    msgrChatHeader.textContent = `Chat with ${friendName}`;
-    msgrInput.disabled = false;
-    msgrSendBtn.disabled = false;
+    activeChatName = friendName;
+    
+    if (msgrChatHeaderText) {
+      msgrChatHeaderText.textContent = `Chat with ${friendName}`;
+    } else if (msgrChatHeader) {
+      msgrChatHeader.textContent = `Chat with ${friendName}`;
+    }
+    
+    if (msgrChatStatus) {
+      msgrChatStatus.innerHTML = statusHtml(friendName);
+    }
+    
+    if (msgrInput) msgrInput.disabled = false;
+    if (msgrSendBtn) msgrSendBtn.disabled = false;
     msgrChatBox.innerHTML = '<div style="color: #888; text-align: center;">Loading messages...</div>';
     
     if (msgrInterval) clearInterval(msgrInterval);
     await loadMsgrMessages();
-    msgrInterval = setInterval(loadMsgrMessages, 3000);
+    // Обновляем сообщения и статус каждые 4 секунды (чуть реже, чтобы не дёргать)
+    msgrInterval = setInterval(async () => {
+      await fetchOnlineUsers();
+      if (msgrChatStatus && activeChatName) msgrChatStatus.innerHTML = statusHtml(activeChatName);
+      // Обновляем статусы в списке друзей
+      loadMsgrFriendsStatusOnly();
+      loadMsgrMessages();
+    }, 4000);
   };
+
+  function loadMsgrFriendsStatusOnly() {
+    // Лёгкое обновление только статусов без полной перерисовки списка (чтобы не сбрасывать scroll)
+    const items = msgrFriendsList.querySelectorAll('[onclick^="openMsgrChat"]');
+    items.forEach(el => {
+      const onclick = el.getAttribute('onclick') || '';
+      const match = onclick.match(/openMsgrChat\(\d+,\s*'([^']+)'\)/);
+      if (match) {
+        const nick = match[1];
+        const statusEl = el.querySelector('div > div:last-child');
+        if (statusEl) statusEl.innerHTML = statusHtml(nick);
+      }
+    });
+  }
 
   async function loadMsgrMessages() {
     if (!activeChatId) return;
@@ -472,6 +591,7 @@ if (document.getElementById('msgrBtn')) {
       if (!Array.isArray(messages) || messages.length === 0) {
         msgrChatBox.innerHTML = '<div style="color: #888; text-align: center; margin-top: 10px;">No messages yet. Say hi!</div>';
       } else {
+        const wasAtBottom = msgrChatBox.scrollHeight - msgrChatBox.scrollTop - msgrChatBox.clientHeight < 40;
         msgrChatBox.innerHTML = messages.map(m => {
           const isMe = m.sender_id === currentUser.id;
           return `<div style="margin-bottom: 6px; text-align: ${isMe ? 'right' : 'left'};">
@@ -480,23 +600,66 @@ if (document.getElementById('msgrBtn')) {
             </span>
           </div>`;
         }).join('');
-        msgrChatBox.scrollTop = msgrChatBox.scrollHeight;
+        if (wasAtBottom) msgrChatBox.scrollTop = msgrChatBox.scrollHeight;
       }
     } catch(e) { console.error(e); }
   }
 
-  msgrForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const text = msgrInput.value.trim();
-    if (!text || !activeChatId) return;
-    
-    msgrInput.value = '';
-    msgrEmojiPanel.style.display = 'none';
-    try {
-      await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: currentUser.id, receiver_id: activeChatId, body: text }) });
-      loadMsgrMessages();
-    } catch(e) { alert('Error sending message'); }
-  });
+  if (msgrForm) {
+    msgrForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = msgrInput.value.trim();
+      if (!text || !activeChatId) return;
+      
+      msgrInput.value = '';
+      if (msgrEmojiPanel) msgrEmojiPanel.style.display = 'none';
+      try {
+        await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: currentUser.id, receiver_id: activeChatId, body: text }) });
+        loadMsgrMessages();
+      } catch(e) { alert('Error sending message'); }
+    });
+  }
+
+  // Если мы на странице messages.html — сразу грузим друзей + держим presence
+  if (window.location.pathname.includes('messages.html')) {
+    if (!currentUser) {
+      msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Please <a href="/">login</a> to use messenger.</div>';
+    } else {
+      // Тихое подключение к лобби-чату только для статуса "в сети"
+      (function keepPresence() {
+        let pWs = null;
+        let pDelay = 3000;
+        function connectPresence() {
+          if (pWs && (pWs.readyState === WebSocket.OPEN || pWs.readyState === WebSocket.CONNECTING)) return;
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          pWs = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
+          pWs.onopen = () => { pDelay = 3000; };
+          pWs.onmessage = (ev) => {
+            try {
+              const data = JSON.parse(ev.data);
+              if (data.type === 'online' && Array.isArray(data.users)) {
+                onlineNicks = new Set(data.users);
+                loadMsgrFriendsStatusOnly();
+                if (msgrChatStatus && activeChatName) msgrChatStatus.innerHTML = statusHtml(activeChatName);
+              }
+            } catch(e) {}
+          };
+          pWs.onclose = () => {
+            setTimeout(() => { connectPresence(); pDelay = Math.min(pDelay * 1.5, 15000); }, pDelay);
+          };
+          pWs.onerror = () => { try { pWs.close(); } catch(e) {} };
+        }
+        connectPresence();
+      })();
+
+      loadMsgrFriends();
+      setInterval(async () => {
+        await fetchOnlineUsers();
+        loadMsgrFriendsStatusOnly();
+        if (msgrChatStatus && activeChatName) msgrChatStatus.innerHTML = statusHtml(activeChatName);
+      }, 8000);
+    }
+  }
 }
 
 // ================= 5. СТРАНИЦА ТРЕДА =================
