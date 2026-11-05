@@ -709,16 +709,22 @@ if (document.getElementById('msgrFriendsList')) {
     msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888;">Loading...</div>';
     try {
       fetchOnlineUsers().catch(() => {});
+      const fetchWithTimeout = (url, ms = 8000) => {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), ms);
+        return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t));
+      };
       // Контакты = друзья + те, с кем уже есть переписка
       let contacts = [];
       try {
-        const res = await fetch('/api/messages/contacts?user_id=' + encodeURIComponent(currentUser.id));
+        const res = await fetchWithTimeout('/api/messages/contacts?user_id=' + encodeURIComponent(currentUser.id));
         if (res.ok) contacts = await res.json();
-      } catch (e) {}
+      } catch (e) { console.warn('contacts fetch', e); }
       if (!Array.isArray(contacts) || contacts.length === 0) {
-        // fallback: только друзья
-        const res2 = await fetch('/api/friends/list?user_id=' + encodeURIComponent(currentUser.id));
-        if (res2.ok) contacts = await res2.json();
+        try {
+          const res2 = await fetchWithTimeout('/api/friends/list?user_id=' + encodeURIComponent(currentUser.id));
+          if (res2.ok) contacts = await res2.json();
+        } catch (e) { console.warn('friends list fetch', e); }
       }
       if (!Array.isArray(contacts)) contacts = [];
 
@@ -886,8 +892,9 @@ if (document.getElementById('msgrFriendsList')) {
     });
   }
 
-  // Если мы на странице messages.html — сразу грузим друзей + держим presence
-  if (window.location.pathname.includes('messages.html')) {
+  // Страница ЛС: /messages.html или /messages (у Cloudflare часто без .html)
+  const isMessagesPage = /\/messages(\.html)?\/?$/i.test(window.location.pathname);
+  if (isMessagesPage) {
     if (!currentUser) {
       msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">Please <a href="/">login</a> to use messenger.</div>';
     } else {
