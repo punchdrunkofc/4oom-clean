@@ -228,6 +228,12 @@ async function getAuthUser(request, env) {
     const auth = request.headers.get('Authorization') || '';
     if (auth.startsWith('Bearer ')) token = auth.slice(7).trim();
   }
+  if (!token) {
+    try {
+      const u = new URL(request.url);
+      token = u.searchParams.get('token') || '';
+    } catch (e) {}
+  }
   if (!token) return null;
   const userId = await verifySessionToken(token, env);
   if (!userId) return null;
@@ -247,6 +253,12 @@ function json(data, status, cors, extraHeaders = {}) {
     status,
     headers: { ...cors, 'Content-Type': 'application/json', ...extraHeaders }
   });
+}
+
+
+async function ensureMessagesSchema(env) {
+  try { await env.DB.prepare(`ALTER TABLE messages ADD COLUMN created_at INTEGER`).run(); } catch (e) {}
+  try { await env.DB.prepare(`ALTER TABLE messages ADD COLUMN is_read INTEGER DEFAULT 0`).run(); } catch (e) {}
 }
 
 // ================= MAIN WORKER =================
@@ -312,8 +324,9 @@ export default {
         }
         const sessionToken = await createSessionToken(dbUser.id, env);
         const userJson = JSON.stringify({ id: dbUser.id, login: dbUser.display_name, avatar: dbUser.avatar_url, role: dbUser.role, font: dbUser.font_family });
+        const tokenJs = JSON.stringify(sessionToken);
         return new Response(
-          `<html><body><script>localStorage.setItem('4oom_user', JSON.stringify(${userJson}));location.href='/';</script></body></html>`,
+          `<html><body><script>localStorage.setItem('4oom_user', JSON.stringify(${userJson}));localStorage.setItem('4oom_session', ${tokenJs});location.href='/';</script></body></html>`,
           { headers: { 'Content-Type': 'text/html', 'Set-Cookie': sessionCookieHeader(sessionToken, request) } }
         );
       } catch (e) { return new Response('Auth error: ' + e.message, { status: 500 }); }
@@ -348,7 +361,12 @@ export default {
       if (url.pathname === '/api/me' && request.method === 'GET') {
         const auth = await getAuthUser(request, env);
         if (!auth) return json({ user: null }, 200, cors);
-        return json({ user: { id: auth.id, login: auth.display_name, avatar: auth.avatar_url, role: auth.role, font: auth.font_family } }, 200, cors);
+        // обновляем токен для localStorage (cookie HttpOnly клиент не читает)
+        const session_token = await createSessionToken(auth.id, env);
+        return json({
+          user: { id: auth.id, login: auth.display_name, avatar: auth.avatar_url, role: auth.role, font: auth.font_family },
+          session_token
+        }, 200, cors, { 'Set-Cookie': sessionCookieHeader(session_token, request) });
       }
 
       // --- ПОЛЬЗОВАТЕЛИ ---
@@ -463,7 +481,8 @@ export default {
       }
 
       // Контакты для мессенджера: друзья + те, с кем уже есть переписка
-      if (url.pathname === '/api/messages/contacts' && request.method === 'GET') {
+if (url.pathname === '/api/messages/contacts' && request.method === 'GET') {
+        await ensureMessagesSchema(env);
         const auth = await getAuthUser(request, env);
         if (!auth) return json({ error: 'Unauthorized' }, 401, cors);
         const userId = auth.id;
@@ -503,6 +522,7 @@ export default {
 
       // --- ЛС (СООБЩЕНИЯ) ---
       if (url.pathname === '/api/messages' && request.method === 'GET') {
+        await ensureMessagesSchema(env);
         const auth = await getAuthUser(request, env);
         if (!auth) return json({ error: 'Unauthorized' }, 401, cors);
         const senderId = url.searchParams.get('sender_id');
@@ -518,23 +538,41 @@ export default {
             const q = await env.DB.prepare(
               `SELECT id, sender_id, receiver_id, body, created_at, COALESCE(is_read, 0) AS is_read FROM messages
                WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
-               ORDER BY created_at ASC, id ASC`
+               ORDER BY COALESCE(created_at, id) ASC, id ASC`
             ).bind(sid, rid, rid, sid).all();
             results = q.results || [];
           } catch (e) {
-            const q = await env.DB.prepare(
-              `SELECT id, sender_id, receiver_id, body, created_at FROM messages
-               WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
-               ORDER BY created_at ASC, id ASC`
-            ).bind(sid, rid, rid, sid).all();
-            results = (q.results || []).map(m => ({ ...m, is_read: 0 }));
+            try {
+              const q = await env.DB.prepare(
+                `SELECT id, sender_id, receiver_id, body, created_at FROM messages
+                 WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+                 ORDER BY id ASC`
+              ).bind(sid, rid, rid, sid).all();
+              results = (q.results || []).map(m => ({ ...m, is_read: 0 }));
+            } catch (e2) {
+              const q = await env.DB.prepare(
+                `SELECT id, sender_id, receiver_id, body FROM messages
+                 WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+                 ORDER BY id ASC`
+              ).bind(sid, rid, rid, sid).all();
+              results = (q.results || []).map(m => ({ ...m, created_at: null, is_read: 0 }));
+            }
           }
-          return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
+          results = results.map(m => ({
+            id: m.id,
+            sender_id: m.sender_id,
+            receiver_id: m.receiver_id,
+            body: m.body,
+            created_at: m.created_at != null ? Number(m.created_at) : null,
+            is_read: Number(m.is_read) ? 1 : 0
+          }));
+          return json(results, 200, cors);
         } catch (err) {
           return new Response(JSON.stringify({ error: 'DB Error: ' + err.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
         }
       }
-      if (url.pathname === '/api/messages/read' && request.method === 'POST') {
+if (url.pathname === '/api/messages/read' && request.method === 'POST') {
+        await ensureMessagesSchema(env);
         const auth = await getAuthUser(request, env);
         if (!auth) return json({ error: 'Unauthorized' }, 401, cors);
         const b = await request.json();
@@ -573,6 +611,7 @@ export default {
         return new Response(JSON.stringify({ unread_messages, friend_requests }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
       if (url.pathname === '/api/messages' && request.method === 'POST') {
+        await ensureMessagesSchema(env);
         const auth = await getAuthUser(request, env);
         if (!auth) return json({ error: 'Unauthorized' }, 401, cors);
         if (!rateLimit(ip, 'msg', 60, 60000)) return json({ error: 'Rate limit' }, 429, cors);

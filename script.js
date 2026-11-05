@@ -26,6 +26,54 @@ let currentUser = null;
 const userJson = localStorage.getItem('4oom_user');
 if (userJson) { try { currentUser = JSON.parse(userJson); } catch(e) {} }
 
+function getSessionToken() {
+  return localStorage.getItem('4oom_session') || '';
+}
+function authHeaders(extra) {
+  const h = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
+  const t = getSessionToken();
+  if (t) h['Authorization'] = 'Bearer ' + t;
+  return h;
+}
+function wsAuthQuery() {
+  const t = getSessionToken();
+  return t ? '&token=' + encodeURIComponent(t) : '';
+}
+async function apiFetch(path, opts) {
+  opts = opts || {};
+  const headers = Object.assign({}, authHeaders(), opts.headers || {});
+  return fetch(path, Object.assign({}, opts, { headers, credentials: 'same-origin' }));
+}
+(function sessionBootstrap() {
+  function showWarn() {
+    if (document.getElementById('sessionWarnBar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'sessionWarnBar';
+    bar.style.cssText = 'position:fixed;bottom:48px;left:10px;right:10px;z-index:10002;background:#ffffcc;border:2px solid #808080;padding:8px 12px;font-family:Tahoma,sans-serif;font-size:12px;box-shadow:2px 2px 0 #000;text-align:center;';
+    bar.innerHTML = 'Please <a href="/api/auth/login" style="font-weight:bold;">login with GitHub</a> to use chat and messages.';
+    (document.body ? document.body : document.documentElement).appendChild(bar);
+  }
+  function hideWarn() {
+    const b = document.getElementById('sessionWarnBar');
+    if (b) b.remove();
+  }
+  fetch('/api/me', { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.user) {
+        currentUser = data.user;
+        try {
+          localStorage.setItem('4oom_user', JSON.stringify(data.user));
+          if (data.session_token) localStorage.setItem('4oom_session', data.session_token);
+        } catch (e) {}
+        hideWarn();
+      } else if (currentUser && !getSessionToken()) {
+        showWarn();
+      }
+    })
+    .catch(() => { if (currentUser && !getSessionToken()) showWarn(); });
+})();
+
 const urlParams = new URLSearchParams(window.location.search);
 const currentSection = urlParams.get('section');
 let dbSections = [];
@@ -185,7 +233,7 @@ if (document.getElementById('threadList')) {
         lobbyManualClose = false;
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         try {
-          lobbyWs = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
+          lobbyWs = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}${wsAuthQuery()}`);
         } catch (e) {
           scheduleLobbyReconnect();
           return;
@@ -295,7 +343,7 @@ if (document.getElementById('threadList')) {
         bugManualClose = false;
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         try {
-          bugWs = new WebSocket(`${protocol}//${window.location.host}/api/bugs/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
+          bugWs = new WebSocket(`${protocol}//${window.location.host}/api/bugs/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}${wsAuthQuery()}`);
         } catch (e) {
           scheduleBugReconnect();
           return;
@@ -701,138 +749,132 @@ if (document.getElementById('msgrFriendsList')) {
       : '<span style="color: #888; font-size: 11px;">○ offline</span>';
   }
 
-  async function loadMsgrFriends() {
+  let contactsCache = [];
+
+  async function loadMsgrFriends(force) {
     if (!currentUser) {
       msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">Please login.</div>';
       return;
     }
-    msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888;">Loading...</div>';
+    // не мигаем Loading, если уже есть список
+    if (!force && contactsCache.length) {
+      renderContactsList(contactsCache);
+      return;
+    }
+    if (!contactsCache.length) {
+      msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888;">Loading...</div>';
+    }
     try {
       fetchOnlineUsers().catch(() => {});
-      const fetchWithTimeout = (url, ms = 8000) => {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), ms);
-        return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t));
-      };
-      // Контакты = друзья + те, с кем уже есть переписка
       let contacts = [];
       try {
-        const res = await fetchWithTimeout('/api/messages/contacts?user_id=' + encodeURIComponent(currentUser.id));
+        const res = await apiFetch('/api/messages/contacts');
         if (res.ok) contacts = await res.json();
-      } catch (e) { console.warn('contacts fetch', e); }
+      } catch (e) { console.warn('contacts', e); }
       if (!Array.isArray(contacts) || contacts.length === 0) {
         try {
-          const res2 = await fetchWithTimeout('/api/friends/list?user_id=' + encodeURIComponent(currentUser.id));
+          const res2 = await apiFetch('/api/friends/list');
           if (res2.ok) contacts = await res2.json();
-        } catch (e) { console.warn('friends list fetch', e); }
+        } catch (e) { console.warn('friends', e); }
       }
       if (!Array.isArray(contacts)) contacts = [];
 
-      // Если пришли с профиля ?to=ID — добавить контакт в список
       const toId = Number(urlParams.get('to'));
       const toName = urlParams.get('name');
       if (toId && !contacts.some(c => Number(c.id) === toId)) {
-        contacts.unshift({
-          id: toId,
-          display_name: toName || ('User #' + toId),
-          avatar_url: null,
-          role: 'user',
-          source: 'direct'
-        });
+        contacts.unshift({ id: toId, display_name: toName || ('User #' + toId), avatar_url: null, role: 'user', source: 'direct' });
       }
 
       const seen = new Set();
-      const unique = contacts.filter(f => {
-        if (seen.has(f.id)) return false;
-        seen.add(f.id);
+      contactsCache = contacts.filter(f => {
+        const id = Number(f.id);
+        if (seen.has(id)) return false;
+        seen.add(id);
         return true;
       });
-
-      if (unique.length === 0) {
-        msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">No contacts yet.<br><small>Add a friend or open a profile and click Message.</small></div>';
-        return;
+      renderContactsList(contactsCache);
+    } catch (e) {
+      console.error('loadMsgrFriends', e);
+      if (!contactsCache.length) {
+        msgrFriendsList.innerHTML = '<div style="color: red; text-align: center; padding: 10px;">Error loading contacts.</div>';
       }
-      msgrFriendsList.innerHTML = unique.map(f => {
-        const safeName = String(f.display_name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        const av = f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2220%22 height=%2220%22 fill=%22%23ccc%22/%3E%3C/svg%3E';
-        const active = activeChatId && Number(activeChatId) === Number(f.id);
-        return `
-        <div style="padding: 6px; border-bottom: 1px dotted #ccc; cursor: pointer; display: flex; align-items: center; gap: 6px; ${active ? 'background:#d0d0d0;' : ''}" onclick="openMsgrChat(${f.id}, '${safeName}')">
-          <img src="${av}" style="width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover;">
-          <div style="flex-grow: 1; min-width: 0;">
-            <div style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${formatName(f.display_name, f.role, null)}</div>
-            <div>${statusHtml(f.display_name)}</div>
+    }
+  }
+
+  function renderContactsList(list) {
+    if (!list || !list.length) {
+      msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">No contacts yet.<br><small>Open a profile → Message</small></div>';
+      return;
+    }
+    msgrFriendsList.innerHTML = list.map(f => {
+      const name = String(f.display_name || 'User');
+      const safeName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const av = f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2220%22 height=%2220%22 fill=%22%23ccc%22/%3E%3C/svg%3E';
+      const active = activeChatId && Number(activeChatId) === Number(f.id);
+      return `<div class="msgr-contact" data-id="${f.id}" data-name="${escapeHtml(name)}" style="padding:6px;border-bottom:1px dotted #ccc;cursor:pointer;display:flex;align-items:center;gap:6px;${active ? 'background:#d0d0d0;' : ''}" onclick="openMsgrChat(${f.id}, '${safeName}')">
+          <img src="${av}" style="width:24px;height:24px;border:1px solid #808080;object-fit:cover;">
+          <div style="flex-grow:1;min-width:0;">
+            <div class="msgr-contact-name" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(name)}</div>
+            <div class="msgr-contact-status">${statusHtml(name)}</div>
           </div>
         </div>`;
-      }).join('');
-    } catch(e) {
-      console.error('loadMsgrFriends error:', e);
-      msgrFriendsList.innerHTML = '<div style="color: red; text-align: center; padding: 10px;">Error loading contacts.<br><small>' + escapeHtml(String(e.message || e)) + '</small></div>';
-    }
+    }).join('');
   }
 
   window.openMsgrChat = async function(friendId, friendName) {
     activeChatId = Number(friendId);
-    activeChatName = friendName;
-    
-    if (msgrChatHeaderText) {
-      msgrChatHeaderText.textContent = `Chat with ${friendName}`;
-    } else if (msgrChatHeader) {
-      msgrChatHeader.textContent = `Chat with ${friendName}`;
-    }
-    
-    if (msgrChatStatus) {
-      msgrChatStatus.innerHTML = statusHtml(friendName);
-    }
-    
+    activeChatName = friendName || ('User #' + friendId);
+
+    if (msgrChatHeaderText) msgrChatHeaderText.textContent = 'Chat with ' + activeChatName;
+    else if (msgrChatHeader) msgrChatHeader.textContent = 'Chat with ' + activeChatName;
+    if (msgrChatStatus) msgrChatStatus.innerHTML = statusHtml(activeChatName);
     if (msgrInput) msgrInput.disabled = false;
     if (msgrSendBtn) msgrSendBtn.disabled = false;
-    msgrChatBox.innerHTML = '<div style="color: #888; text-align: center;">Loading messages...</div>';
-    
+    msgrChatBox.innerHTML = '<div style="color:#888;text-align:center;">Loading messages...</div>';
+
+    document.querySelectorAll('.msgr-contact').forEach(el => {
+      el.style.background = Number(el.getAttribute('data-id')) === activeChatId ? '#d0d0d0' : '';
+    });
+
     if (msgrInterval) clearInterval(msgrInterval);
     await loadMsgrMessages();
-    // Обновляем сообщения и статус каждые 4 секунды (чуть реже, чтобы не дёргать)
     msgrInterval = setInterval(async () => {
       await fetchOnlineUsers();
       if (msgrChatStatus && activeChatName) msgrChatStatus.innerHTML = statusHtml(activeChatName);
-      // Обновляем статусы в списке друзей
       loadMsgrFriendsStatusOnly();
       loadMsgrMessages();
-    }, 4000);
+    }, 5000);
   };
 
   function loadMsgrFriendsStatusOnly() {
-    // Лёгкое обновление только статусов без полной перерисовки списка (чтобы не сбрасывать scroll)
-    const items = msgrFriendsList.querySelectorAll('[onclick^="openMsgrChat"]');
-    items.forEach(el => {
-      const onclick = el.getAttribute('onclick') || '';
-      const match = onclick.match(/openMsgrChat\(\d+,\s*'([^']+)'\)/);
-      if (match) {
-        const nick = match[1];
-        const statusEl = el.querySelector('div > div:last-child');
-        if (statusEl) statusEl.innerHTML = statusHtml(nick);
-      }
+    document.querySelectorAll('.msgr-contact').forEach(el => {
+      const name = el.getAttribute('data-name') || '';
+      const statusEl = el.querySelector('.msgr-contact-status');
+      if (statusEl) statusEl.innerHTML = statusHtml(name);
     });
   }
 
   function formatMsgTime(ts) {
-    if (!ts) return '';
-    const d = new Date(Number(ts) < 1e12 ? Number(ts) * 1000 : Number(ts));
+    if (ts == null || ts === '') return '';
+    let n = Number(ts);
+    if (!n || isNaN(n)) {
+      const d0 = new Date(ts);
+      if (isNaN(d0.getTime())) return '';
+      n = d0.getTime();
+    }
+    const d = new Date(n < 1e12 ? n * 1000 : n);
     if (isNaN(d.getTime())) return '';
-    const now = new Date();
-    const sameDay = d.toDateString() === now.toDateString();
     const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (sameDay) return t;
+    if (d.toDateString() === new Date().toDateString()) return t;
     return d.toLocaleDateString([], { day: '2-digit', month: '2-digit' }) + ' ' + t;
   }
 
   async function markChatRead(peerId) {
     if (!currentUser || !peerId) return;
     try {
-      await fetch('/api/messages/read', {
+      await apiFetch('/api/messages/read', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: Number(currentUser.id), peer_id: Number(peerId) })
+        body: JSON.stringify({ peer_id: Number(peerId) })
       });
       if (typeof window.refreshAlertsBadge === 'function') window.refreshAlertsBadge();
     } catch (e) {}
@@ -841,39 +883,41 @@ if (document.getElementById('msgrFriendsList')) {
   async function loadMsgrMessages() {
     if (!activeChatId || !currentUser) return;
     try {
-      const res = await fetch(`/api/messages?sender_id=${encodeURIComponent(currentUser.id)}&receiver_id=${encodeURIComponent(activeChatId)}`);
-      const data = await res.json();
+      const res = await apiFetch('/api/messages?sender_id=' + encodeURIComponent(currentUser.id) + '&receiver_id=' + encodeURIComponent(activeChatId));
+      const data = await res.json().catch(() => ([]));
       if (!res.ok) {
-        msgrChatBox.innerHTML = '<div style="color: red; text-align: center; margin-top: 10px;">Error: ' + escapeHtml(data.error || res.status) + '</div>';
-        console.error('messages GET failed', data);
+        msgrChatBox.innerHTML = '<div style="color:red;text-align:center;margin-top:10px;">Error: ' + escapeHtml((data && data.error) || res.status) + '</div>';
         return;
       }
       const messages = Array.isArray(data) ? data : [];
-      // Помечаем входящие как прочитанные
       markChatRead(activeChatId);
+      if (msgrChatHeaderText && activeChatName) {
+        msgrChatHeaderText.textContent = 'Chat with ' + activeChatName;
+      }
       if (messages.length === 0) {
-        msgrChatBox.innerHTML = '<div style="color: #888; text-align: center; margin-top: 10px;">No messages yet. Say hi!</div>';
+        msgrChatBox.innerHTML = '<div style="color:#888;text-align:center;margin-top:10px;">No messages yet. Say hi!</div>';
       } else {
         const myId = Number(currentUser.id);
-        const wasAtBottom = msgrChatBox.scrollHeight - msgrChatBox.scrollTop - msgrChatBox.clientHeight < 40;
+        const wasAtBottom = msgrChatBox.scrollHeight - msgrChatBox.scrollTop - msgrChatBox.clientHeight < 80;
         msgrChatBox.innerHTML = messages.map(m => {
           const isMe = Number(m.sender_id) === myId;
           const timeStr = formatMsgTime(m.created_at);
           const readMark = isMe
             ? (Number(m.is_read) ? '<span style="color:#0066cc;margin-left:4px;" title="Read">✓✓</span>' : '<span style="color:#888;margin-left:4px;" title="Sent">✓</span>')
             : '';
-          return `<div style="margin-bottom: 8px; text-align: ${isMe ? 'right' : 'left'};">
-            <span style="background: ${isMe ? '#c0c0c0' : '#e0e0e0'}; padding: 4px 8px; border: 1px solid #808080; border-radius: 4px; display: inline-block; max-width: 80%; word-wrap: break-word; text-align: left;">
-              ${escapeHtml(m.body)}
-              <div style="font-size: 10px; color: #666; margin-top: 2px; font-family: Tahoma, sans-serif;">${timeStr}${readMark}</div>
+          const meta = (timeStr || readMark)
+            ? `<div style="font-size:10px;color:#666;margin-top:3px;font-family:Tahoma,sans-serif;">${timeStr}${readMark}</div>`
+            : '';
+          return `<div style="margin-bottom:8px;text-align:${isMe ? 'right' : 'left'};">
+            <span style="background:${isMe ? '#c0c0c0' : '#e0e0e0'};padding:4px 8px;border:1px solid #808080;border-radius:4px;display:inline-block;max-width:80%;word-wrap:break-word;text-align:left;">
+              ${escapeHtml(m.body)}${meta}
             </span>
           </div>`;
         }).join('');
         if (wasAtBottom) msgrChatBox.scrollTop = msgrChatBox.scrollHeight;
       }
-    } catch(e) {
+    } catch (e) {
       console.error('loadMsgrMessages', e);
-      msgrChatBox.innerHTML = '<div style="color: red; text-align: center; margin-top: 10px;">Failed to load messages.</div>';
     }
   }
 
@@ -897,11 +941,9 @@ if (document.getElementById('msgrFriendsList')) {
       msgrChatBox.scrollTop = msgrChatBox.scrollHeight;
 
       try {
-        const res = await fetch('/api/messages', {
+        const res = await apiFetch('/api/messages', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            sender_id: Number(currentUser.id),
             receiver_id: Number(activeChatId),
             body: text
           })
@@ -950,7 +992,7 @@ if (document.getElementById('msgrFriendsList')) {
           pManual = false;
           const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
           try {
-            pWs = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
+            pWs = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}${wsAuthQuery()}`);
           } catch (e) {
             schedulePresence();
             return;
@@ -1203,10 +1245,9 @@ if (document.getElementById('setNick')) {
     }
 
     try {
-      const r = await fetch('/api/profile', { 
+      const r = await apiFetch('/api/profile', { 
         method: 'POST', 
-        headers: {'Content-Type': 'application/json'}, 
-        body: JSON.stringify({ user_id: currentUser.id, display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: bg }) 
+        body: JSON.stringify({ display_name: n, avatar_url: a, banner_url: b, bio, font_family: f, background_url: bg }) 
       });
       
       const res = await r.json();
@@ -1235,10 +1276,9 @@ if (document.getElementById('setNick')) {
 window.sendFriendRequest = async function(targetId) {
   if (!currentUser) return alert('Please login first');
   try {
-    const r = await fetch('/api/friends/request', {
+    const r = await apiFetch('/api/friends/request', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: currentUser.id, friend_id: targetId })
+      body: JSON.stringify({ friend_id: targetId })
     });
     if (!r.ok) throw new Error((await r.json()).error || 'Error');
     alert('Friend request sent!');
@@ -1250,10 +1290,9 @@ window.removeFriend = async function(friendId, friendName) {
   const name = friendName || 'this user';
   if (!confirm('Remove ' + name + ' from friends?')) return;
   try {
-    const r = await fetch('/api/friends/remove', {
+    const r = await apiFetch('/api/friends/remove', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: currentUser.id, friend_id: friendId })
+      body: JSON.stringify({ friend_id: friendId })
     });
     if (!r.ok) throw new Error((await r.json()).error || 'Error');
     alert('Removed from friends.');
@@ -1334,23 +1373,33 @@ window.removeFriend = async function(friendId, friendName) {
   document.addEventListener('click', unlockSound, { once: true });
   document.addEventListener('keydown', unlockSound, { once: true });
 
-  // --- Панель громкости (верх страницы, справа) ---
+  // --- Панель громкости (левый нижний угол, Win95 slider) ---
   let soundBar = document.getElementById('globalSoundBar');
   if (!soundBar) {
+    if (!document.getElementById('win95-range-css')) {
+      const st = document.createElement('style');
+      st.id = 'win95-range-css';
+      st.textContent = `
+#globalSoundBar{position:fixed;left:10px;bottom:10px;z-index:10001;display:flex;align-items:center;gap:6px;
+background:#c0c0c0;border:2px solid;border-color:#fff #808080 #808080 #fff;padding:4px 6px;
+font-family:Tahoma,sans-serif;font-size:11px;box-shadow:1px 1px 0 #000;}
+#globalSoundBar button{border:2px solid;border-color:#fff #808080 #808080 #fff;background:#c0c0c0;padding:1px 6px;cursor:pointer;font-size:12px;}
+#globalSoundBar button:active{border-color:#808080 #fff #fff #808080;}
+#globalSoundBar select{border:2px solid;border-color:#808080 #fff #fff #808080;background:#fff;font-size:11px;max-width:88px;}
+#soundVolSlider{-webkit-appearance:none;appearance:none;width:90px;height:18px;background:transparent;cursor:pointer;vertical-align:middle;}
+#soundVolSlider::-webkit-slider-runnable-track{height:4px;background:#808080;border:1px solid;border-color:#404040 #dfdfdf #dfdfdf #404040;box-shadow:inset 1px 1px 0 #000;}
+#soundVolSlider::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:20px;margin-top:-9px;background:#c0c0c0;border:2px solid;border-color:#fff #808080 #808080 #fff;box-shadow:1px 1px 0 #000;cursor:pointer;}
+#soundVolSlider::-moz-range-track{height:4px;background:#808080;border:1px solid;border-color:#404040 #dfdfdf #dfdfdf #404040;}
+#soundVolSlider::-moz-range-thumb{width:12px;height:18px;background:#c0c0c0;border:2px solid;border-color:#fff #808080 #808080 #fff;border-radius:0;cursor:pointer;}
+`;
+      document.head.appendChild(st);
+    }
     soundBar = document.createElement('div');
     soundBar.id = 'globalSoundBar';
-    soundBar.style.cssText = [
-      'position:fixed', 'top:8px', 'right:10px', 'z-index:10001',
-      'display:flex', 'align-items:center', 'gap:6px',
-      'background:#e0e0e0', 'border:2px solid',
-      'border-color:#fff #808080 #808080 #fff',
-      'padding:4px 8px', 'font-family:Tahoma,sans-serif', 'font-size:11px',
-      'box-shadow:1px 1px 0 #000'
-    ].join(';');
     soundBar.innerHTML = `
-      <button type="button" id="soundMuteBtn" title="Mute/Unmute" style="padding:2px 6px;cursor:pointer;border:2px solid;border-color:#fff #808080 #808080 #fff;background:#c0c0c0;font-size:12px;">🔊</button>
-      <input type="range" id="soundVolSlider" min="0" max="100" value="${Math.round(getVol()*100)}" title="Volume" style="width:80px;cursor:pointer;">
-      <select id="msgSoundSelect" title="Message sound" style="font-size:11px;max-width:90px;">
+      <button type="button" id="soundMuteBtn" title="Mute/Unmute">🔊</button>
+      <input type="range" id="soundVolSlider" min="0" max="100" value="${Math.round(getVol()*100)}" title="Volume">
+      <select id="msgSoundSelect" title="Message sound">
         <option value="message1">Pop</option>
         <option value="message2">Cup</option>
         <option value="message3">Clarinet</option>
@@ -1514,7 +1563,8 @@ window.removeFriend = async function(friendId, friendName) {
 
   async function refreshAlertsBadge() {
     try {
-      const res = await fetch('/api/alerts?user_id=' + encodeURIComponent(currentUser.id));
+      if (!getSessionToken() && !document.cookie.includes('4oom_session')) return;
+      const res = await apiFetch('/api/alerts');
       if (!res.ok) return;
       const data = await res.json();
       const unreadMsg = Number(data.unread_messages) || 0;
