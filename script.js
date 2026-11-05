@@ -137,11 +137,28 @@ if (document.getElementById('threadList')) {
       let lobbyWs = null;
       let lobbyReconnectTimer = null;
       let lobbyReconnectDelay = 2000;
+      let lobbyManualClose = false;
+
+      function scheduleLobbyReconnect() {
+        if (lobbyManualClose || document.hidden) return;
+        if (lobbyReconnectTimer) clearTimeout(lobbyReconnectTimer);
+        lobbyReconnectTimer = setTimeout(() => {
+          lobbyReconnectDelay = Math.min(lobbyReconnectDelay * 1.5, 15000);
+          connectLobbyChat();
+        }, lobbyReconnectDelay);
+      }
 
       function connectLobbyChat() {
+        if (document.hidden) return;
         if (lobbyWs && (lobbyWs.readyState === WebSocket.OPEN || lobbyWs.readyState === WebSocket.CONNECTING)) return;
+        lobbyManualClose = false;
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        lobbyWs = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
+        try {
+          lobbyWs = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
+        } catch (e) {
+          scheduleLobbyReconnect();
+          return;
+        }
         
         lobbyWs.onopen = () => {
           lobbyReconnectDelay = 2000;
@@ -149,43 +166,64 @@ if (document.getElementById('threadList')) {
         };
         
         lobbyWs.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === 'history') {
-            chatMsgs.innerHTML = '';
-            if (!Array.isArray(data.messages) || data.messages.length === 0) {
-              chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No messages yet.</div>';
-            } else {
-              data.messages.forEach(m => {
-                const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
-                div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="text-decoration: none;">${formatName(m.user, m.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(m.text)}</span>`;
-                chatMsgs.appendChild(div);
-              });
-              chatMsgs.scrollTop = chatMsgs.scrollHeight;
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'history') {
+              chatMsgs.innerHTML = '';
+              if (!Array.isArray(data.messages) || data.messages.length === 0) {
+                chatMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No messages yet.</div>';
+              } else {
+                data.messages.forEach(m => {
+                  const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
+                  div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="text-decoration: none;">${formatName(m.user, m.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(m.text)}</span>`;
+                  chatMsgs.appendChild(div);
+                });
+                chatMsgs.scrollTop = chatMsgs.scrollHeight;
+              }
             }
-          }
-          if (data.type === 'chat') {
-            const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
-            div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="text-decoration: none;">${formatName(data.user, data.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(data.text)}</span>`;
-            chatMsgs.appendChild(div); chatMsgs.scrollTop = chatMsgs.scrollHeight;
-          }
-          if (data.type === 'online') {
-            onlineUsers.innerHTML = data.users.length > 0 ? '🟢 Online: ' + data.users.map(u => `<a href="/profile.html?user=${encodeURIComponent(u)}" style="color: inherit;">${escapeHtml(u)}</a>`).join(', ') : '⚫ No one online';
-          }
+            if (data.type === 'chat') {
+              const div = document.createElement('div'); div.style.marginBottom = '6px'; div.style.fontSize = '12px';
+              div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="text-decoration: none;">${formatName(data.user, data.role, null)}:</a> <span style="font-family: 'Times New Roman', serif;">${escapeHtml(data.text)}</span>`;
+              chatMsgs.appendChild(div); chatMsgs.scrollTop = chatMsgs.scrollHeight;
+            }
+            if (data.type === 'online') {
+              onlineUsers.innerHTML = data.users.length > 0 ? '🟢 Online: ' + data.users.map(u => `<a href="/profile.html?user=${encodeURIComponent(u)}" style="color: inherit;">${escapeHtml(u)}</a>`).join(', ') : '⚫ No one online';
+            }
+          } catch (e) {}
         };
         
         lobbyWs.onclose = () => {
-          onlineUsers.innerHTML = '⚫ Reconnecting...';
-          if (lobbyReconnectTimer) clearTimeout(lobbyReconnectTimer);
-          lobbyReconnectTimer = setTimeout(() => {
-            connectLobbyChat();
-            lobbyReconnectDelay = Math.min(lobbyReconnectDelay * 1.5, 15000);
-          }, lobbyReconnectDelay);
+          lobbyWs = null;
+          if (!lobbyManualClose) {
+            onlineUsers.innerHTML = '⚫ Reconnecting...';
+            scheduleLobbyReconnect();
+          }
         };
         
-        lobbyWs.onerror = () => { try { lobbyWs.close(); } catch(e) {} };
+        lobbyWs.onerror = () => { try { if (lobbyWs) lobbyWs.close(); } catch(e) {} };
+      }
+
+      function closeLobbyChat() {
+        lobbyManualClose = true;
+        if (lobbyReconnectTimer) { clearTimeout(lobbyReconnectTimer); lobbyReconnectTimer = null; }
+        if (lobbyWs) {
+          try { lobbyWs.onclose = null; lobbyWs.close(); } catch(e) {}
+          lobbyWs = null;
+        }
       }
       
       connectLobbyChat();
+
+      // bfcache / вкладка скрыта — не спамим reconnect
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) closeLobbyChat();
+        else { lobbyReconnectDelay = 2000; connectLobbyChat(); }
+      });
+      window.addEventListener('pagehide', () => closeLobbyChat());
+      window.addEventListener('pageshow', (ev) => {
+        lobbyReconnectDelay = 2000;
+        connectLobbyChat();
+      });
       
       chatForm.addEventListener('submit', e => {
         e.preventDefault(); const t = chatInput.value.trim();
@@ -209,55 +247,85 @@ if (document.getElementById('threadList')) {
       let bugWs = null;
       let bugReconnectTimer = null;
       let bugReconnectDelay = 2000;
+      let bugManualClose = false;
+
+      function scheduleBugReconnect() {
+        if (bugManualClose || document.hidden) return;
+        if (bugReconnectTimer) clearTimeout(bugReconnectTimer);
+        bugReconnectTimer = setTimeout(() => {
+          bugReconnectDelay = Math.min(bugReconnectDelay * 1.5, 15000);
+          connectBugChat();
+        }, bugReconnectDelay);
+      }
 
       function connectBugChat() {
+        if (document.hidden) return;
         if (bugWs && (bugWs.readyState === WebSocket.OPEN || bugWs.readyState === WebSocket.CONNECTING)) return;
+        bugManualClose = false;
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        bugWs = new WebSocket(`${protocol}//${window.location.host}/api/bugs/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
+        try {
+          bugWs = new WebSocket(`${protocol}//${window.location.host}/api/bugs/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
+        } catch (e) {
+          scheduleBugReconnect();
+          return;
+        }
         
         bugWs.onopen = () => { bugReconnectDelay = 2000; };
         
         bugWs.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          
-          if (data.type === 'history') {
-            bugMsgs.innerHTML = '';
-            if (!Array.isArray(data.messages) || data.messages.length === 0) { 
-              bugMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No reports yet.</div>'; 
-            } else {
-              data.messages.forEach(m => {
-                const div = document.createElement('div'); 
-                div.style.marginBottom = '6px'; 
-                div.style.fontSize = '12px';
-                div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="text-decoration: none;">${formatName(m.user, m.role, null)}:</a> <span style="font-family: 'Times New Roman', serif; color: #800000;">${escapeHtml(m.text)}</span>`;
-                bugMsgs.appendChild(div);
-              });
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'history') {
+              bugMsgs.innerHTML = '';
+              if (!Array.isArray(data.messages) || data.messages.length === 0) { 
+                bugMsgs.innerHTML = '<div style="color: #888; font-size: 11px; text-align: center;">No reports yet.</div>'; 
+              } else {
+                data.messages.forEach(m => {
+                  const div = document.createElement('div'); 
+                  div.style.marginBottom = '6px'; 
+                  div.style.fontSize = '12px';
+                  div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(m.user)}" style="text-decoration: none;">${formatName(m.user, m.role, null)}:</a> <span style="font-family: 'Times New Roman', serif; color: #800000;">${escapeHtml(m.text)}</span>`;
+                  bugMsgs.appendChild(div);
+                });
+                bugMsgs.scrollTop = bugMsgs.scrollHeight;
+              }
+            }
+            if (data.type === 'chat') {
+              const div = document.createElement('div'); 
+              div.style.marginBottom = '6px'; 
+              div.style.fontSize = '12px';
+              div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="text-decoration: none;">${formatName(data.user, data.role, null)}:</a> <span style="font-family: 'Times New Roman', serif; color: #800000;">${escapeHtml(data.text)}</span>`;
+              bugMsgs.appendChild(div); 
               bugMsgs.scrollTop = bugMsgs.scrollHeight;
             }
-          }
-          
-          if (data.type === 'chat') {
-            const div = document.createElement('div'); 
-            div.style.marginBottom = '6px'; 
-            div.style.fontSize = '12px';
-            div.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(data.user)}" style="text-decoration: none;">${formatName(data.user, data.role, null)}:</a> <span style="font-family: 'Times New Roman', serif; color: #800000;">${escapeHtml(data.text)}</span>`;
-            bugMsgs.appendChild(div); 
-            bugMsgs.scrollTop = bugMsgs.scrollHeight;
-          }
+          } catch (e) {}
         };
         
         bugWs.onclose = () => {
-          if (bugReconnectTimer) clearTimeout(bugReconnectTimer);
-          bugReconnectTimer = setTimeout(() => {
-            connectBugChat();
-            bugReconnectDelay = Math.min(bugReconnectDelay * 1.5, 15000);
-          }, bugReconnectDelay);
+          bugWs = null;
+          if (!bugManualClose) scheduleBugReconnect();
         };
         
-        bugWs.onerror = () => { try { bugWs.close(); } catch(e) {} };
+        bugWs.onerror = () => { try { if (bugWs) bugWs.close(); } catch(e) {} };
+      }
+
+      function closeBugChat() {
+        bugManualClose = true;
+        if (bugReconnectTimer) { clearTimeout(bugReconnectTimer); bugReconnectTimer = null; }
+        if (bugWs) {
+          try { bugWs.onclose = null; bugWs.close(); } catch(e) {}
+          bugWs = null;
+        }
       }
       
       connectBugChat();
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) closeBugChat();
+        else { bugReconnectDelay = 2000; connectBugChat(); }
+      });
+      window.addEventListener('pagehide', () => closeBugChat());
+      window.addEventListener('pageshow', () => { bugReconnectDelay = 2000; connectBugChat(); });
       
       bugForm.addEventListener('submit', e => {
         e.preventDefault(); 
@@ -776,10 +844,29 @@ if (document.getElementById('msgrFriendsList')) {
       (function keepPresence() {
         let pWs = null;
         let pDelay = 3000;
+        let pTimer = null;
+        let pManual = false;
+
+        function schedulePresence() {
+          if (pManual || document.hidden) return;
+          if (pTimer) clearTimeout(pTimer);
+          pTimer = setTimeout(() => {
+            pDelay = Math.min(pDelay * 1.5, 15000);
+            connectPresence();
+          }, pDelay);
+        }
+
         function connectPresence() {
+          if (document.hidden) return;
           if (pWs && (pWs.readyState === WebSocket.OPEN || pWs.readyState === WebSocket.CONNECTING)) return;
+          pManual = false;
           const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-          pWs = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
+          try {
+            pWs = new WebSocket(`${protocol}//${window.location.host}/api/chat/ws?nick=${encodeURIComponent(currentUser.login)}&role=${encodeURIComponent(currentUser.role)}&uid=${currentUser.id}`);
+          } catch (e) {
+            schedulePresence();
+            return;
+          }
           pWs.onopen = () => { pDelay = 3000; };
           pWs.onmessage = (ev) => {
             try {
@@ -792,11 +879,28 @@ if (document.getElementById('msgrFriendsList')) {
             } catch(e) {}
           };
           pWs.onclose = () => {
-            setTimeout(() => { connectPresence(); pDelay = Math.min(pDelay * 1.5, 15000); }, pDelay);
+            pWs = null;
+            if (!pManual) schedulePresence();
           };
-          pWs.onerror = () => { try { pWs.close(); } catch(e) {} };
+          pWs.onerror = () => { try { if (pWs) pWs.close(); } catch(e) {} };
         }
+
+        function closePresence() {
+          pManual = true;
+          if (pTimer) { clearTimeout(pTimer); pTimer = null; }
+          if (pWs) {
+            try { pWs.onclose = null; pWs.close(); } catch(e) {}
+            pWs = null;
+          }
+        }
+
         connectPresence();
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) closePresence();
+          else { pDelay = 3000; connectPresence(); }
+        });
+        window.addEventListener('pagehide', () => closePresence());
+        window.addEventListener('pageshow', () => { pDelay = 3000; connectPresence(); });
       })();
 
       loadMsgrFriends();
