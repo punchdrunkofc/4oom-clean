@@ -1603,3 +1603,35 @@ font-family:Tahoma,sans-serif;font-size:11px;box-shadow:1px 1px 0 #000;}
     } catch (e) {}
   }, { once: true });
 })();
+
+// ================= SECRET CODES =================
+(function initSecretCodes() {
+  const form = document.getElementById('secretCodeForm');
+  const input = document.getElementById('secretCodeInput');
+  const status = document.getElementById('secretCodeStatus');
+  if (!form || !input) return;
+
+  const CODES = {
+    destructive: '/games/Destructive/'   // или '/games/Destructive/index.html'
+  };
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const code = (input.value || '').trim().toLowerCase();
+    if (!code) return;
+
+    if (CODES[code]) {
+      if (status) status.textContent = 'Access granted...';
+      if (typeof playSe === 'function') playSe('accept.mp3');
+      location.href = CODES[code];
+      return;
+    }
+
+    if (status) {
+      status.style.color = '#800000';
+      status.textContent = 'Unknown code.';
+    }
+    if (typeof playSe === 'function') playSe('click.mp3');
+    input.value = '';
+  });
+})();
