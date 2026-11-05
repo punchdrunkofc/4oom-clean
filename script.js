@@ -571,18 +571,45 @@ if (document.getElementById('msgrFriendsList')) {
     }
     msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888;">Loading...</div>';
     try {
-      await fetchOnlineUsers();
-      const res = await fetch('/api/friends/list?user_id=' + currentUser.id);
-      const friends = await res.json();
-      if (!Array.isArray(friends) || friends.length === 0) {
-        msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">No friends yet. Add someone on the main page.</div>';
+      fetchOnlineUsers().catch(() => {});
+      let contacts = [];
+      try {
+        const res = await apiFetch('/api/messages/contacts?user_id=' + encodeURIComponent(currentUser.id));
+        if (res.ok) contacts = await res.json();
+      } catch (e) {}
+      if (!Array.isArray(contacts) || contacts.length === 0) {
+        try {
+          const res2 = await apiFetch('/api/friends/list?user_id=' + encodeURIComponent(currentUser.id));
+          if (res2.ok) contacts = await res2.json();
+        } catch (e) {}
+      }
+      if (!Array.isArray(contacts)) contacts = [];
+
+      const toId = Number(urlParams.get('to'));
+      const toName = urlParams.get('name');
+      if (toId && !contacts.some(c => Number(c.id) === toId)) {
+        contacts.unshift({ id: toId, display_name: toName || ('User #' + toId), avatar_url: null, role: 'user' });
+      }
+
+      const seen = new Set();
+      const unique = contacts.filter(f => {
+        if (seen.has(f.id)) return false;
+        seen.add(f.id);
+        return true;
+      });
+
+      if (unique.length === 0) {
+        msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">No contacts yet.<br><small>Add a friend or open a profile and click Message.</small></div>';
         return;
       }
-      msgrFriendsList.innerHTML = friends.map(f => {
-        const safeName = escapeHtml(f.display_name).replace(/'/g, "\\'");
+      msgrFriendsList.innerHTML = unique.map(f => {
+        // имя для onclick: только экранируем кавычки, без HTML-entities
+        const safeName = String(f.display_name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const av = f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2220%22 height=%2220%22 fill=%22%23ccc%22/%3E%3C/svg%3E';
+        const active = activeChatId && Number(activeChatId) === Number(f.id);
         return `
-        <div style="padding: 6px; border-bottom: 1px dotted #ccc; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="openMsgrChat(${f.id}, '${safeName}')">
-          <img src="${f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2220%22 height=%2220%22 fill=%22%23ccc%22/%3E%3C/svg%3E'}" style="width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover;">
+        <div style="padding: 6px; border-bottom: 1px dotted #ccc; cursor: pointer; display: flex; align-items: center; gap: 6px; ${active ? 'background:#d0d0d0;' : ''}" onclick="openMsgrChat(${f.id}, '${safeName}')">
+          <img src="${av}" style="width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover;">
           <div style="flex-grow: 1; min-width: 0;">
             <div style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${formatName(f.display_name, f.role, null)}</div>
             <div>${statusHtml(f.display_name)}</div>
@@ -590,74 +617,118 @@ if (document.getElementById('msgrFriendsList')) {
         </div>`;
       }).join('');
     } catch(e) {
-      msgrFriendsList.innerHTML = '<div style="color: red; text-align: center;">Error loading friends.</div>';
+      console.error(e);
+      msgrFriendsList.innerHTML = '<div style="color: red; text-align: center; padding: 10px;">Error loading contacts.</div>';
     }
   }
 
   window.openMsgrChat = async function(friendId, friendName) {
-    activeChatId = friendId;
-    activeChatName = friendName;
-    
+    activeChatId = Number(friendId);
+    activeChatName = friendName || ('User #' + friendId);
+
     if (msgrChatHeaderText) {
-      msgrChatHeaderText.textContent = `Chat with ${friendName}`;
+      msgrChatHeaderText.textContent = 'Chat with ' + activeChatName;
     } else if (msgrChatHeader) {
-      msgrChatHeader.textContent = `Chat with ${friendName}`;
+      msgrChatHeader.innerHTML = '<span id="msgrChatHeaderText">Chat with ' + escapeHtml(activeChatName) + '</span> <span id="msgrChatStatus" style="font-size:11px;font-weight:normal;"></span>';
     }
-    
     if (msgrChatStatus) {
-      msgrChatStatus.innerHTML = statusHtml(friendName);
+      msgrChatStatus.innerHTML = statusHtml(activeChatName);
     }
-    
     if (msgrInput) msgrInput.disabled = false;
     if (msgrSendBtn) msgrSendBtn.disabled = false;
     msgrChatBox.innerHTML = '<div style="color: #888; text-align: center;">Loading messages...</div>';
-    
+
+    // подсветка в списке
+    loadMsgrFriendsStatusOnly();
+    try {
+      const items = msgrFriendsList.querySelectorAll('[onclick^="openMsgrChat"]');
+      items.forEach(el => {
+        const oc = el.getAttribute('onclick') || '';
+        el.style.background = oc.indexOf('openMsgrChat(' + activeChatId + ',') === 0 || oc.indexOf('openMsgrChat(' + activeChatId + ', ') >= 0 ? '#d0d0d0' : '';
+      });
+    } catch (e) {}
+
     if (msgrInterval) clearInterval(msgrInterval);
     await loadMsgrMessages();
-    // Обновляем сообщения и статус каждые 4 секунды (чуть реже, чтобы не дёргать)
     msgrInterval = setInterval(async () => {
       await fetchOnlineUsers();
       if (msgrChatStatus && activeChatName) msgrChatStatus.innerHTML = statusHtml(activeChatName);
-      // Обновляем статусы в списке друзей
       loadMsgrFriendsStatusOnly();
       loadMsgrMessages();
     }, 4000);
   };
 
   function loadMsgrFriendsStatusOnly() {
-    // Лёгкое обновление только статусов без полной перерисовки списка (чтобы не сбрасывать scroll)
     const items = msgrFriendsList.querySelectorAll('[onclick^="openMsgrChat"]');
     items.forEach(el => {
       const onclick = el.getAttribute('onclick') || '';
-      const match = onclick.match(/openMsgrChat\(\d+,\s*'([^']+)'\)/);
+      const match = onclick.match(/openMsgrChat\(\d+,\s*'((?:\\'|[^'])*)'\)/);
       if (match) {
-        const nick = match[1];
+        const nick = match[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\');
         const statusEl = el.querySelector('div > div:last-child');
         if (statusEl) statusEl.innerHTML = statusHtml(nick);
       }
     });
   }
 
-  async function loadMsgrMessages() {
-    if (!activeChatId) return;
+  function formatMsgTime(ts) {
+    if (ts == null || ts === '') return '';
+    const n = Number(ts);
+    if (!n) return '';
+    const d = new Date(n < 1e12 ? n * 1000 : n);
+    if (isNaN(d.getTime())) return '';
+    const now = new Date();
+    const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) return t;
+    return d.toLocaleDateString([], { day: '2-digit', month: '2-digit' }) + ' ' + t;
+  }
+
+  async function markChatRead(peerId) {
+    if (!currentUser || !peerId) return;
     try {
-      const res = await fetch(`/api/messages?sender_id=${currentUser.id}&receiver_id=${activeChatId}`);
-      const messages = await res.json();
-      if (!Array.isArray(messages) || messages.length === 0) {
+      await apiFetch('/api/messages/read', {
+        method: 'POST',
+        body: JSON.stringify({ peer_id: Number(peerId) })
+      });
+      if (typeof window.refreshAlertsBadge === 'function') window.refreshAlertsBadge();
+    } catch (e) {}
+  }
+
+  async function loadMsgrMessages() {
+    if (!activeChatId || !currentUser) return;
+    try {
+      const res = await apiFetch('/api/messages?sender_id=' + encodeURIComponent(currentUser.id) + '&receiver_id=' + encodeURIComponent(activeChatId));
+      const data = await res.json().catch(() => ([]));
+      if (!res.ok) {
+        msgrChatBox.innerHTML = '<div style="color: red; text-align: center; margin-top: 10px;">Error: ' + escapeHtml((data && data.error) || res.status) + '</div>';
+        return;
+      }
+      const messages = Array.isArray(data) ? data : [];
+      markChatRead(activeChatId);
+      if (messages.length === 0) {
         msgrChatBox.innerHTML = '<div style="color: #888; text-align: center; margin-top: 10px;">No messages yet. Say hi!</div>';
       } else {
+        const myId = Number(currentUser.id);
         const wasAtBottom = msgrChatBox.scrollHeight - msgrChatBox.scrollTop - msgrChatBox.clientHeight < 40;
         msgrChatBox.innerHTML = messages.map(m => {
-          const isMe = m.sender_id === currentUser.id;
-          return `<div style="margin-bottom: 6px; text-align: ${isMe ? 'right' : 'left'};">
-            <span style="background: ${isMe ? '#c0c0c0' : '#e0e0e0'}; padding: 2px 6px; border: 1px solid #808080; border-radius: 4px; display: inline-block; max-width: 80%; word-wrap: break-word;">
-              ${escapeHtml(m.body)}
-            </span>
-          </div>`;
+          const isMe = Number(m.sender_id) === myId;
+          const timeStr = formatMsgTime(m.created_at);
+          const readMark = isMe
+            ? (Number(m.is_read) ? '<span style="color:#0066cc;margin-left:4px;" title="Read">✓✓</span>' : '<span style="color:#888;margin-left:4px;" title="Sent">✓</span>')
+            : '';
+          return '<div style="margin-bottom: 8px; text-align: ' + (isMe ? 'right' : 'left') + ';">' +
+            '<span style="background: ' + (isMe ? '#c0c0c0' : '#e0e0e0') + '; padding: 4px 8px; border: 1px solid #808080; border-radius: 4px; display: inline-block; max-width: 80%; word-wrap: break-word; text-align: left;">' +
+            escapeHtml(m.body) +
+            '<div style="font-size: 10px; color: #666; margin-top: 2px; font-family: Tahoma, sans-serif;">' +
+            timeStr + readMark +
+            '</div></span></div>';
         }).join('');
         if (wasAtBottom) msgrChatBox.scrollTop = msgrChatBox.scrollHeight;
       }
-    } catch(e) { console.error(e); }
+    } catch(e) {
+      console.error('loadMsgrMessages', e);
+      msgrChatBox.innerHTML = '<div style="color: red; text-align: center; margin-top: 10px;">Failed to load messages.</div>';
+    }
   }
 
   if (msgrForm) {
@@ -669,7 +740,7 @@ if (document.getElementById('msgrFriendsList')) {
       msgrInput.value = '';
       if (msgrEmojiPanel) msgrEmojiPanel.style.display = 'none';
       try {
-        await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: currentUser.id, receiver_id: activeChatId, body: text }) });
+        await apiFetch('/api/messages', { method: 'POST', body: JSON.stringify({ receiver_id: activeChatId, body: text }) });
         loadMsgrMessages();
       } catch(e) { alert('Error sending message'); }
     });
@@ -707,7 +778,11 @@ if (document.getElementById('msgrFriendsList')) {
         connectPresence();
       })();
 
-      loadMsgrFriends();
+      loadMsgrFriends().then(() => {
+        const toId = Number(urlParams.get('to'));
+        const toName = urlParams.get('name') || ('User #' + toId);
+        if (toId) openMsgrChat(toId, toName);
+      });
       setInterval(async () => {
         await fetchOnlineUsers();
         loadMsgrFriendsStatusOnly();
