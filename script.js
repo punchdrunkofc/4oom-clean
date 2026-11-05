@@ -47,13 +47,38 @@ async function apiFetch(path, opts) {
   return res;
 }
 (function sessionBootstrap() {
-  if (!currentUser || getSessionToken()) return;
-  const bar = document.createElement('div');
-  bar.id = 'sessionWarnBar';
-  bar.style.cssText = 'position:fixed;bottom:48px;left:10px;right:10px;z-index:10002;background:#ffffcc;border:2px solid #808080;padding:8px 12px;font-family:Tahoma,sans-serif;font-size:12px;box-shadow:2px 2px 0 #000;text-align:center;';
-  bar.innerHTML = 'Session expired after security update. Please <a href="/api/auth/login" style="font-weight:bold;">login with GitHub</a> again.';
-  const add = () => document.body && document.body.appendChild(bar);
-  if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
+  function showSessionWarn() {
+    if (document.getElementById('sessionWarnBar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'sessionWarnBar';
+    bar.style.cssText = 'position:fixed;bottom:48px;left:10px;right:10px;z-index:10002;background:#ffffcc;border:2px solid #808080;padding:8px 12px;font-family:Tahoma,sans-serif;font-size:12px;box-shadow:2px 2px 0 #000;text-align:center;';
+    bar.innerHTML = 'Please <a href="/api/auth/login" style="font-weight:bold;">login with GitHub</a> to use chat, messages and profile actions.';
+    const add = () => document.body && document.body.appendChild(bar);
+    if (document.body) add(); else document.addEventListener('DOMContentLoaded', add);
+  }
+  function hideSessionWarn() {
+    const bar = document.getElementById('sessionWarnBar');
+    if (bar) bar.remove();
+  }
+  // Проверяем реальную сессию (cookie), не только localStorage
+  fetch('/api/me', { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.user) {
+        currentUser = data.user;
+        try {
+          localStorage.setItem('4oom_user', JSON.stringify(data.user));
+          if (data.session_token) localStorage.setItem('4oom_session', data.session_token);
+        } catch (e) {}
+        hideSessionWarn();
+        return;
+      }
+      // нет серверной сессии
+      if (currentUser && !getSessionToken()) showSessionWarn();
+    })
+    .catch(() => {
+      if (currentUser && !getSessionToken()) showSessionWarn();
+    });
 })();
 
 const urlParams = new URLSearchParams(window.location.search);
