@@ -52,6 +52,7 @@
       <button class="neon-btn" onclick="document.getElementById('createForm').style.display='block'">+ NEW THREAD</button>
     </div>
     <ul class="thread-list" id="threadList"><li class="thread"><a href="#"><span class="thread__title">Loading...</span></a></li></ul>
+    <div id="threadsPager" style="display: none; padding: 8px; background: #e0e0e0; border-top: 1px solid #808080; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;"></div>
     
     <div id="createForm" style="display:none; padding: 12px; background: #e0e0e0; border-top: 1px solid #808080;">
       <h3 style="margin-bottom: 8px;">Create Thread</h3>
@@ -100,6 +101,9 @@
 
   <section class="window" style="margin-top: 12px;">
     <div class="window__bar"><span>👥 Registered Users</span></div>
+    <div style="padding: 8px 8px 0 8px;">
+      <input type="text" id="userSearchInput" placeholder="Search by name..." style="width: 100%; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080; font-size: 12px; box-sizing: border-box;" autocomplete="off">
+    </div>
     <div id="usersList" style="padding: 8px; max-height: 300px; overflow-y: auto; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px;">
       <div style="text-align: center; color: #888;">Loading users...</div>
     </div>

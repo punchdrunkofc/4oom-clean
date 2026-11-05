@@ -108,12 +108,17 @@ if (document.getElementById('userName')) {
           if (!Array.isArray(friends) || friends.length === 0) {
             list.innerHTML = '<div style="text-align: center; color: #888;">No friends yet. Add someone from the main page!</div>';
           } else {
-            list.innerHTML = friends.map(f => `
-              <div style="display: flex; align-items: center; gap: 8px; padding: 4px; border-bottom: 1px dotted #ccc;">
-                <img src="${f.avatar_url || '...'}" style="width: 24px; height: 24px; border: 1px solid #808080;">
-                <a href="/profile.html?user=${encodeURIComponent(f.display_name)}" style="text-decoration: none;">${formatName(f.display_name, f.role, null)}</a>
-              </div>
-            `).join('');
+            list.innerHTML = friends.map(f => {
+              const safeName = String(f.display_name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+              return `
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px; border-bottom: 1px dotted #ccc;">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                  <img src="${f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect width=%2224%22 height=%2224%22 fill=%22%23ccc%22/%3E%3C/svg%3E'}" style="width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover;">
+                  <a href="/profile.html?user=${encodeURIComponent(f.display_name)}" style="text-decoration: none;">${formatName(f.display_name, f.role, null)}</a>
+                </div>
+                <button class="neon-btn" style="padding: 1px 6px; font-size: 10px; flex-shrink: 0; background: #ffcccc; color: #800000;" onclick="removeFriend(${f.id}, '${safeName}')">Remove</button>
+              </div>`;
+            }).join('');
           }
         }).catch(e => console.error(e));
       }
@@ -272,32 +277,64 @@ if (document.getElementById('threadList')) {
     }
   }
 
-  // --- СПИСОК ЮЗЕРОВ ---
-  if (currentUser) {
-    fetch('/api/friends/all?user_id=' + currentUser.id).then(r => r.json()).then(existingLinks => {
-      fetch('/api/users').then(r => r.json()).then(users => {
-        const list = document.getElementById('usersList');
-        if (!list || !Array.isArray(users)) return;
-        if (users.length === 0) { list.innerHTML = '<div style="text-align: center; color: #888;">No users found.</div>'; return; }
-        list.innerHTML = users.map(u => {
-          const isMe = currentUser.login === u.display_name;
-          const hasLink = Array.isArray(existingLinks) && existingLinks.includes(u.id);
-          const friendBtn = (!isMe && !hasLink) ? `<button class="neon-btn" style="padding: 2px 6px; font-size: 10px; margin-left: 8px;" onclick="sendFriendRequest(${u.id})">+ Add Friend</button>` : '';
-          return `<div style="display: flex; align-items: center; justify-content: space-between; padding: 6px; border-bottom: 1px dotted #ccc;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <img src="${u.avatar_url || '...'}" style="width: 24px; height: 24px; border: 1px solid #808080;">
-              <a href="/profile.html?user=${encodeURIComponent(u.display_name)}" style="text-decoration: none;">${formatName(u.display_name, u.role, null)}</a>
-              ${getRoleBadge(u.role)}
-            </div>
-            <div>${friendBtn}</div>
-          </div>`;
-        }).join('');
-      });
-    }).catch(e => console.error(e));
-  } else {
-    fetch('/api/users').then(r => r.json()).then(users => {
+  // --- СПИСОК ЮЗЕРОВ + ПОИСК ---
+  let allUsersCache = [];
+  let existingFriendLinks = [];
+
+  function renderUsersList(filter) {
+    const list = document.getElementById('usersList');
+    if (!list) return;
+    const q = (filter || '').toLowerCase().trim();
+    let users = allUsersCache;
+    if (q) {
+      users = users.filter(u => (u.display_name || '').toLowerCase().includes(q));
+    }
+    if (users.length === 0) {
+      list.innerHTML = '<div style="text-align: center; color: #888;">' + (q ? 'No users match "' + escapeHtml(q) + '".' : 'No users found.') + '</div>';
+      return;
+    }
+    if (currentUser) {
+      list.innerHTML = users.map(u => {
+        const isMe = currentUser.login === u.display_name;
+        const hasLink = Array.isArray(existingFriendLinks) && existingFriendLinks.includes(u.id);
+        const friendBtn = (!isMe && !hasLink) ? `<button class="neon-btn" style="padding: 2px 6px; font-size: 10px; margin-left: 8px;" onclick="sendFriendRequest(${u.id})">+ Add Friend</button>` : '';
+        return `<div style="display: flex; align-items: center; justify-content: space-between; padding: 6px; border-bottom: 1px dotted #ccc;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <img src="${u.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect width=%2224%22 height=%2224%22 fill=%22%23ccc%22/%3E%3C/svg%3E'}" style="width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover;">
+            <a href="/profile.html?user=${encodeURIComponent(u.display_name)}" style="text-decoration: none;">${formatName(u.display_name, u.role, null)}</a>
+            ${getRoleBadge(u.role)}
+          </div>
+          <div>${friendBtn}</div>
+        </div>`;
+      }).join('');
+    } else {
+      list.innerHTML = users.map(u => `<div style="padding: 6px; border-bottom: 1px dotted #ccc;"><a href="/profile.html?user=${encodeURIComponent(u.display_name)}" style="text-decoration: none;">${formatName(u.display_name, u.role, null)}</a></div>`).join('');
+    }
+  }
+
+  (async function loadUsersList() {
+    try {
+      if (currentUser) {
+        try {
+          const r = await fetch('/api/friends/all?user_id=' + currentUser.id);
+          existingFriendLinks = await r.json();
+          if (!Array.isArray(existingFriendLinks)) existingFriendLinks = [];
+        } catch(e) { existingFriendLinks = []; }
+      }
+      const res = await fetch('/api/users');
+      allUsersCache = await res.json();
+      if (!Array.isArray(allUsersCache)) allUsersCache = [];
+      renderUsersList('');
+    } catch(e) {
       const list = document.getElementById('usersList');
-      if (list && Array.isArray(users)) list.innerHTML = users.map(u => `<div style="padding: 6px; border-bottom: 1px dotted #ccc;"><a href="/profile.html?user=${encodeURIComponent(u.display_name)}" style="text-decoration: none;">${formatName(u.display_name, u.role, null)}</a></div>`).join('');
+      if (list) list.innerHTML = '<div style="text-align: center; color: red;">Error loading users.</div>';
+    }
+  })();
+
+  const userSearchInput = document.getElementById('userSearchInput');
+  if (userSearchInput) {
+    userSearchInput.addEventListener('input', function() {
+      renderUsersList(this.value);
     });
   }
 
@@ -351,19 +388,26 @@ if (document.getElementById('threadList')) {
     } catch(e) { alert(e.message); } 
   };
   
-  window.loadThreads = async () => {
+  const THREADS_PER_PAGE = 6;
+  let allThreadsCache = [];
+  let threadsPage = 1;
+
+  function renderThreadsPage(page) {
     const list = document.getElementById('threadList');
-    try {
-      let ep = '/api/threads'; 
-      if (currentSection === 'my' && currentUser) ep = `/api/threads?my=${encodeURIComponent(currentUser.login)}`; 
-      else if (currentSection) ep = `/api/threads?section=${currentSection}`;
-      
-      let threads = await (await fetch(ep)).json();
-      if (!Array.isArray(threads)) { list.innerHTML = '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">Error loading threads</span></a></li>'; return; }
-      if (!threads.length) { list.innerHTML = '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">Nothing here yet...</span></a></li>'; return; }
-      if (!currentSection) threads = threads.sort((a, b) => b.reply_count - a.reply_count).slice(0, 5);
-      
-      list.innerHTML = threads.map(t => {
+    const pager = document.getElementById('threadsPager');
+    if (!list) return;
+
+    const total = allThreadsCache.length;
+    const totalPages = Math.max(1, Math.ceil(total / THREADS_PER_PAGE));
+    threadsPage = Math.min(Math.max(1, page), totalPages);
+
+    const start = (threadsPage - 1) * THREADS_PER_PAGE;
+    const pageThreads = allThreadsCache.slice(start, start + THREADS_PER_PAGE);
+
+    if (!pageThreads.length) {
+      list.innerHTML = '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">Nothing here yet...</span></a></li>';
+    } else {
+      list.innerHTML = pageThreads.map(t => {
         const canDel = currentUser && (['creator', 'moderator', 'editor'].includes(currentUser.role) || t.author_name === currentUser.login);
         return `<li class="thread" style="text-align: left; display: flex; justify-content: space-between; align-items: center;">
           <div style="flex-grow: 1;">
@@ -375,6 +419,55 @@ if (document.getElementById('threadList')) {
           <div>${canDel ? `<button class="delete-btn" onclick="deleteThread(${t.first_post_id})">delete</button>` : ''}</div>
         </li>`;
       }).join('');
+    }
+
+    // Пагинация: показываем только если тредов больше 6
+    if (pager) {
+      if (total > THREADS_PER_PAGE) {
+        pager.style.display = 'flex';
+        let pagesHtml = '';
+        for (let i = 1; i <= totalPages; i++) {
+          const active = i === threadsPage;
+          pagesHtml += `<button class="neon-btn" style="padding: 2px 8px; font-size: 11px; min-width: 28px; ${active ? 'font-weight:bold; background:#c0c0c0;' : ''}" onclick="goThreadsPage(${i})">${i}</button>`;
+        }
+        pager.innerHTML = `
+          <button class="neon-btn" style="padding: 2px 8px; font-size: 11px;" onclick="goThreadsPage(${threadsPage - 1})" ${threadsPage <= 1 ? 'disabled' : ''}>◀</button>
+          <span style="display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">${pagesHtml}</span>
+          <button class="neon-btn" style="padding: 2px 8px; font-size: 11px;" onclick="goThreadsPage(${threadsPage + 1})" ${threadsPage >= totalPages ? 'disabled' : ''}>▶</button>
+          <span style="font-size: 11px; color: #444; margin-left: 6px;">Page ${threadsPage} / ${totalPages}</span>
+        `;
+      } else {
+        pager.style.display = 'none';
+        pager.innerHTML = '';
+      }
+    }
+  }
+
+  window.goThreadsPage = function(page) {
+    renderThreadsPage(page);
+    const list = document.getElementById('threadList');
+    if (list) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  window.loadThreads = async () => {
+    const list = document.getElementById('threadList');
+    try {
+      let ep = '/api/threads'; 
+      if (currentSection === 'my' && currentUser) ep = `/api/threads?my=${encodeURIComponent(currentUser.login)}`; 
+      else if (currentSection) ep = `/api/threads?section=${currentSection}`;
+      
+      let threads = await (await fetch(ep)).json();
+      if (!Array.isArray(threads)) {
+        list.innerHTML = '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">Error loading threads</span></a></li>';
+        return;
+      }
+      // На главной (без секции) — топ по replies, но с пагинацией если > 6
+      if (!currentSection) {
+        threads = threads.sort((a, b) => b.reply_count - a.reply_count);
+      }
+      allThreadsCache = threads;
+      threadsPage = 1;
+      renderThreadsPage(1);
     } catch(e) { list.innerHTML = '<li>Error</li>'; }
   };
   
@@ -912,5 +1005,41 @@ window.sendFriendRequest = async function(targetId) {
     });
     if (!r.ok) throw new Error((await r.json()).error || 'Error');
     alert('Friend request sent!');
+  } catch (e) { alert(e.message); }
+};
+
+window.removeFriend = async function(friendId, friendName) {
+  if (!currentUser) return alert('Please login first');
+  const name = friendName || 'this user';
+  if (!confirm('Remove ' + name + ' from friends?')) return;
+  try {
+    const r = await fetch('/api/friends/remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: currentUser.id, friend_id: friendId })
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Error');
+    alert('Removed from friends.');
+    // Обновляем список на странице профиля
+    const list = document.getElementById('friendsList');
+    if (list) {
+      const res = await fetch('/api/friends/list?user_id=' + currentUser.id);
+      const friends = await res.json();
+      if (!Array.isArray(friends) || friends.length === 0) {
+        list.innerHTML = '<div style="text-align: center; color: #888;">No friends yet. Add someone from the main page!</div>';
+      } else {
+        list.innerHTML = friends.map(f => {
+          const safeName = String(f.display_name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          return `
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px; border-bottom: 1px dotted #ccc;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <img src="${f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2224%22 height=%2224%22%3E%3Crect width=%2224%22 height=%2224%22 fill=%22%23ccc%22/%3E%3C/svg%3E'}" style="width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover;">
+              <a href="/profile.html?user=${encodeURIComponent(f.display_name)}" style="text-decoration: none;">${formatName(f.display_name, f.role, null)}</a>
+            </div>
+            <button class="neon-btn" style="padding: 1px 6px; font-size: 10px; flex-shrink: 0; background: #ffcccc; color: #800000;" onclick="removeFriend(${f.id}, '${safeName}')">Remove</button>
+          </div>`;
+        }).join('');
+      }
+    }
   } catch (e) { alert(e.message); }
 };
