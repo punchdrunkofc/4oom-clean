@@ -647,7 +647,7 @@ if (document.getElementById('msgrFriendsList')) {
   }
 
   window.openMsgrChat = async function(friendId, friendName) {
-    activeChatId = friendId;
+    activeChatId = Number(friendId);
     activeChatName = friendName;
     
     if (msgrChatHeaderText) {
@@ -691,16 +691,23 @@ if (document.getElementById('msgrFriendsList')) {
   }
 
   async function loadMsgrMessages() {
-    if (!activeChatId) return;
+    if (!activeChatId || !currentUser) return;
     try {
-      const res = await fetch(`/api/messages?sender_id=${currentUser.id}&receiver_id=${activeChatId}`);
-      const messages = await res.json();
-      if (!Array.isArray(messages) || messages.length === 0) {
+      const res = await fetch(`/api/messages?sender_id=${encodeURIComponent(currentUser.id)}&receiver_id=${encodeURIComponent(activeChatId)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        msgrChatBox.innerHTML = '<div style="color: red; text-align: center; margin-top: 10px;">Error: ' + escapeHtml(data.error || res.status) + '</div>';
+        console.error('messages GET failed', data);
+        return;
+      }
+      const messages = Array.isArray(data) ? data : [];
+      if (messages.length === 0) {
         msgrChatBox.innerHTML = '<div style="color: #888; text-align: center; margin-top: 10px;">No messages yet. Say hi!</div>';
       } else {
+        const myId = Number(currentUser.id);
         const wasAtBottom = msgrChatBox.scrollHeight - msgrChatBox.scrollTop - msgrChatBox.clientHeight < 40;
         msgrChatBox.innerHTML = messages.map(m => {
-          const isMe = m.sender_id === currentUser.id;
+          const isMe = Number(m.sender_id) === myId;
           return `<div style="margin-bottom: 6px; text-align: ${isMe ? 'right' : 'left'};">
             <span style="background: ${isMe ? '#c0c0c0' : '#e0e0e0'}; padding: 2px 6px; border: 1px solid #808080; border-radius: 4px; display: inline-block; max-width: 80%; word-wrap: break-word;">
               ${escapeHtml(m.body)}
@@ -709,21 +716,54 @@ if (document.getElementById('msgrFriendsList')) {
         }).join('');
         if (wasAtBottom) msgrChatBox.scrollTop = msgrChatBox.scrollHeight;
       }
-    } catch(e) { console.error(e); }
+    } catch(e) {
+      console.error('loadMsgrMessages', e);
+      msgrChatBox.innerHTML = '<div style="color: red; text-align: center; margin-top: 10px;">Failed to load messages.</div>';
+    }
   }
 
   if (msgrForm) {
     msgrForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const text = msgrInput.value.trim();
-      if (!text || !activeChatId) return;
+      if (!text || !activeChatId || !currentUser) return;
       
       msgrInput.value = '';
       if (msgrEmojiPanel) msgrEmojiPanel.style.display = 'none';
+
+      // Оптимистично показываем своё сообщение сразу
+      if (msgrChatBox.querySelector('[style*="color: #888"]')) {
+        msgrChatBox.innerHTML = '';
+      }
+      const tempDiv = document.createElement('div');
+      tempDiv.style.cssText = 'margin-bottom: 6px; text-align: right;';
+      tempDiv.innerHTML = `<span style="background: #c0c0c0; padding: 2px 6px; border: 1px solid #808080; border-radius: 4px; display: inline-block; max-width: 80%; word-wrap: break-word;">${escapeHtml(text)}</span>`;
+      msgrChatBox.appendChild(tempDiv);
+      msgrChatBox.scrollTop = msgrChatBox.scrollHeight;
+
       try {
-        await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sender_id: currentUser.id, receiver_id: activeChatId, body: text }) });
+        const res = await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sender_id: Number(currentUser.id),
+            receiver_id: Number(activeChatId),
+            body: text
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          tempDiv.remove();
+          alert('Error sending message: ' + (data.error || res.status));
+          console.error('messages POST failed', data);
+          return;
+        }
         loadMsgrMessages();
-      } catch(e) { alert('Error sending message'); }
+      } catch(e) {
+        tempDiv.remove();
+        console.error(e);
+        alert('Error sending message');
+      }
     });
   }
 

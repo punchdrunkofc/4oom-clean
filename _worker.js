@@ -313,14 +313,44 @@ export default {
         const senderId = url.searchParams.get('sender_id');
         const receiverId = url.searchParams.get('receiver_id');
         if (!senderId || !receiverId) return new Response(JSON.stringify({ error: 'Missing IDs' }), { status: 400, headers: cors });
-        const { results } = await env.DB.prepare(`SELECT * FROM messages WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?) ORDER BY created_at ASC`).bind(senderId, receiverId, receiverId, senderId).all();
-        return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        try {
+          const sid = Number(senderId);
+          const rid = Number(receiverId);
+          const { results } = await env.DB.prepare(
+            `SELECT id, sender_id, receiver_id, body, created_at FROM messages
+             WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+             ORDER BY created_at ASC, id ASC`
+          ).bind(sid, rid, rid, sid).all();
+          return new Response(JSON.stringify(results || []), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        } catch (err) {
+          return new Response(JSON.stringify({ error: 'DB Error: ' + err.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+        }
       }
       if (url.pathname === '/api/messages' && request.method === 'POST') {
         const b = await request.json();
         if (!b.sender_id || !b.receiver_id || !b.body) return new Response(JSON.stringify({ error: 'Missing data' }), { status: 400, headers: cors });
-        await env.DB.prepare(`INSERT INTO messages (sender_id, receiver_id, body) VALUES (?, ?, ?)`).bind(b.sender_id, b.receiver_id, b.body).run();
-        return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        const senderId = Number(b.sender_id);
+        const receiverId = Number(b.receiver_id);
+        const body = String(b.body).trim();
+        if (!body) return new Response(JSON.stringify({ error: 'Empty message' }), { status: 400, headers: cors });
+        if (!senderId || !receiverId) return new Response(JSON.stringify({ error: 'Invalid IDs' }), { status: 400, headers: cors });
+        try {
+          const now = Math.floor(Date.now() / 1000);
+          await env.DB.prepare(
+            `INSERT INTO messages (sender_id, receiver_id, body, created_at) VALUES (?, ?, ?, ?)`
+          ).bind(senderId, receiverId, body, now).run();
+          return new Response(JSON.stringify({ ok: true, sender_id: senderId, receiver_id: receiverId, body, created_at: now }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        } catch (err) {
+          // fallback без created_at, если колонки нет в таблице
+          try {
+            await env.DB.prepare(
+              `INSERT INTO messages (sender_id, receiver_id, body) VALUES (?, ?, ?)`
+            ).bind(senderId, receiverId, body).run();
+            return new Response(JSON.stringify({ ok: true, sender_id: senderId, receiver_id: receiverId, body }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+          } catch (err2) {
+            return new Response(JSON.stringify({ error: 'DB Error: ' + err2.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+          }
+        }
       }
 
       // --- РАЗДЕЛЫ ---
