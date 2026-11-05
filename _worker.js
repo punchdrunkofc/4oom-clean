@@ -272,6 +272,19 @@ export default {
         const { results } = await env.DB.prepare(`SELECT f.user_id AS id, u.display_name, u.avatar_url FROM friends f JOIN users u ON f.user_id = u.id WHERE f.friend_id = ? AND f.status = 'pending'`).bind(userId).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
+      // Статус дружбы между двумя пользователями
+      if (url.pathname === '/api/friends/status' && request.method === 'GET') {
+        const userId = Number(url.searchParams.get('user_id'));
+        const otherId = Number(url.searchParams.get('other_id'));
+        if (!userId || !otherId) return new Response(JSON.stringify({ error: 'Missing IDs' }), { status: 400, headers: cors });
+        const out = await env.DB.prepare(`SELECT status FROM friends WHERE user_id = ? AND friend_id = ?`).bind(userId, otherId).first();
+        const inn = await env.DB.prepare(`SELECT status FROM friends WHERE user_id = ? AND friend_id = ?`).bind(otherId, userId).first();
+        let status = 'none';
+        if ((out && out.status === 'accepted') || (inn && inn.status === 'accepted')) status = 'accepted';
+        else if (out && out.status === 'pending') status = 'pending_out';
+        else if (inn && inn.status === 'pending') status = 'pending_in';
+        return new Response(JSON.stringify({ status }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
       if (url.pathname === '/api/friends/accept' && request.method === 'POST') {
         const body = await request.json();
         if (!body.user_id || !body.friend_id) return new Response(JSON.stringify({ error: 'Missing data' }), { status: 400, headers: cors });
@@ -306,6 +319,44 @@ export default {
         if (!body.user_id || !body.friend_id) return new Response(JSON.stringify({ error: 'Missing data' }), { status: 400, headers: cors });
         await env.DB.prepare(`DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)`).bind(body.user_id, body.friend_id, body.friend_id, body.user_id).run();
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+
+      // Контакты для мессенджера: друзья + те, с кем уже есть переписка
+      if (url.pathname === '/api/messages/contacts' && request.method === 'GET') {
+        const userId = Number(url.searchParams.get('user_id'));
+        if (!userId) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
+        try {
+          const friends = await env.DB.prepare(`
+            SELECT u.id, u.display_name, u.avatar_url, u.role, 'friend' AS source FROM friends f
+            JOIN users u ON u.id = f.friend_id
+            WHERE f.user_id = ? AND f.status = 'accepted'
+            UNION
+            SELECT u.id, u.display_name, u.avatar_url, u.role, 'friend' AS source FROM friends f
+            JOIN users u ON u.id = f.user_id
+            WHERE f.friend_id = ? AND f.status = 'accepted'
+          `).bind(userId, userId).all();
+
+          let conv = { results: [] };
+          try {
+            conv = await env.DB.prepare(`
+              SELECT u.id, u.display_name, u.avatar_url, u.role, 'chat' AS source FROM users u
+              WHERE u.id IN (
+                SELECT receiver_id FROM messages WHERE sender_id = ?
+                UNION
+                SELECT sender_id FROM messages WHERE receiver_id = ?
+              ) AND u.id != ?
+            `).bind(userId, userId, userId).all();
+          } catch (e) { /* messages table may be empty */ }
+
+          const map = new Map();
+          for (const r of (friends.results || [])) map.set(r.id, r);
+          for (const r of (conv.results || [])) {
+            if (!map.has(r.id)) map.set(r.id, r);
+          }
+          return new Response(JSON.stringify([...map.values()]), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        } catch (err) {
+          return new Response(JSON.stringify({ error: 'DB Error: ' + err.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+        }
       }
 
       // --- ЛС (СООБЩЕНИЯ) ---

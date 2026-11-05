@@ -85,9 +85,40 @@ if (document.getElementById('userName')) {
       if (user.display_name === 'PunchDrunk' || user.role === 'creator') applyCustomBg('/bg.mp4');
       else applyCustomBg(user.background_url);
       
-      if (currentUser && currentUser.login === user.display_name) {
+      const isOwnProfile = currentUser && currentUser.login === user.display_name;
+      if (isOwnProfile) {
         const b = document.getElementById('editProfileBtn'); if (b) { b.style.display = 'inline-block'; b.href = '/settings.html'; }
       }
+
+      // Кнопки на чужом профиле: друзья + ЛС
+      const actions = document.getElementById('profileActions');
+      if (actions && currentUser && !isOwnProfile) {
+        actions.style.display = 'flex';
+        actions.innerHTML = '<span style="font-size:11px;color:#666;">Loading...</span>';
+        (async () => {
+          try {
+            const stRes = await fetch(`/api/friends/status?user_id=${currentUser.id}&other_id=${user.id}`);
+            const st = await stRes.json();
+            const status = st.status || 'none';
+            const safeName = String(user.display_name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            let html = '';
+            if (status === 'accepted') {
+              html += `<button class="neon-btn" style="padding:2px 8px;font-size:11px;background:#ffcccc;color:#800000;" onclick="removeFriend(${user.id}, '${safeName}')">Remove Friend</button>`;
+            } else if (status === 'pending_out') {
+              html += `<span style="font-size:11px;color:#666;">Friend request sent</span>`;
+            } else if (status === 'pending_in') {
+              html += `<button class="neon-btn" style="padding:2px 8px;font-size:11px;" onclick="acceptFriend(${user.id})">Accept Friend</button>`;
+            } else {
+              html += `<button class="neon-btn" style="padding:2px 8px;font-size:11px;" onclick="sendFriendRequest(${user.id})">+ Add Friend</button>`;
+            }
+            html += `<a class="neon-btn" style="padding:2px 8px;font-size:11px;text-decoration:none;display:inline-block;" href="/messages.html?to=${user.id}&name=${encodeURIComponent(user.display_name)}">💬 Message</a>`;
+            actions.innerHTML = html;
+          } catch (e) {
+            actions.innerHTML = `<a class="neon-btn" style="padding:2px 8px;font-size:11px;text-decoration:none;" href="/messages.html?to=${user.id}&name=${encodeURIComponent(user.display_name)}">💬 Message</a>`;
+          }
+        })();
+      }
+
       document.getElementById('userAvatar').src = user.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23fff%22 stroke=%22%23808080%22 stroke-width=%222%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23808080%22%3E?%3C/text%3E%3C/svg%3E';
       
       if (user.banner_url) { 
@@ -99,14 +130,14 @@ if (document.getElementById('userName')) {
       const list = document.getElementById('userThreads');
       list.innerHTML = (threads && threads.length > 0) ? threads.map(t => `<li class="thread" style="text-align: left;"><a href="/thread.html?id=${t.id}"><span class="thread__title">[${t.section_slug}] ${escapeHtml(t.title)}</span><span class="thread__meta">${t.reply_count} replies</span></a></li>`).join('') : '<li class="thread" style="text-align: left;"><a href="#"><span class="thread__title">No threads yet.</span></a></li>';
 
-      if (currentUser && currentUser.login === user.display_name) {
+      if (isOwnProfile) {
         const fs = document.getElementById('friendsSection');
         if (fs) fs.style.display = 'block';
         fetch('/api/friends/list?user_id=' + user.id).then(res => res.json()).then(friends => {
           const list = document.getElementById('friendsList');
           if (!list) return;
           if (!Array.isArray(friends) || friends.length === 0) {
-            list.innerHTML = '<div style="text-align: center; color: #888;">No friends yet. Add someone from the main page!</div>';
+            list.innerHTML = '<div style="text-align: center; color: #888;">No friends yet. Add someone from the main page or their profile!</div>';
           } else {
             list.innerHTML = friends.map(f => {
               const safeName = String(f.display_name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -677,30 +708,50 @@ if (document.getElementById('msgrFriendsList')) {
     }
     msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888;">Loading...</div>';
     try {
-      // Онлайн-статус не должен блокировать список друзей
       fetchOnlineUsers().catch(() => {});
-      const res = await fetch('/api/friends/list?user_id=' + encodeURIComponent(currentUser.id));
-      if (!res.ok) {
-        const errText = await res.text().catch(() => '');
-        throw new Error('HTTP ' + res.status + ' ' + errText);
+      // Контакты = друзья + те, с кем уже есть переписка
+      let contacts = [];
+      try {
+        const res = await fetch('/api/messages/contacts?user_id=' + encodeURIComponent(currentUser.id));
+        if (res.ok) contacts = await res.json();
+      } catch (e) {}
+      if (!Array.isArray(contacts) || contacts.length === 0) {
+        // fallback: только друзья
+        const res2 = await fetch('/api/friends/list?user_id=' + encodeURIComponent(currentUser.id));
+        if (res2.ok) contacts = await res2.json();
       }
-      const friends = await res.json();
-      if (!Array.isArray(friends) || friends.length === 0) {
-        msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">No friends yet. Add someone on the main page.</div>';
-        return;
+      if (!Array.isArray(contacts)) contacts = [];
+
+      // Если пришли с профиля ?to=ID — добавить контакт в список
+      const toId = Number(urlParams.get('to'));
+      const toName = urlParams.get('name');
+      if (toId && !contacts.some(c => Number(c.id) === toId)) {
+        contacts.unshift({
+          id: toId,
+          display_name: toName || ('User #' + toId),
+          avatar_url: null,
+          role: 'user',
+          source: 'direct'
+        });
       }
-      // Убираем дубликаты (на случай старых данных)
+
       const seen = new Set();
-      const unique = friends.filter(f => {
+      const unique = contacts.filter(f => {
         if (seen.has(f.id)) return false;
         seen.add(f.id);
         return true;
       });
+
+      if (unique.length === 0) {
+        msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">No contacts yet.<br><small>Add a friend or open a profile and click Message.</small></div>';
+        return;
+      }
       msgrFriendsList.innerHTML = unique.map(f => {
         const safeName = String(f.display_name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         const av = f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2220%22 height=%2220%22 fill=%22%23ccc%22/%3E%3C/svg%3E';
+        const active = activeChatId && Number(activeChatId) === Number(f.id);
         return `
-        <div style="padding: 6px; border-bottom: 1px dotted #ccc; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="openMsgrChat(${f.id}, '${safeName}')">
+        <div style="padding: 6px; border-bottom: 1px dotted #ccc; cursor: pointer; display: flex; align-items: center; gap: 6px; ${active ? 'background:#d0d0d0;' : ''}" onclick="openMsgrChat(${f.id}, '${safeName}')">
           <img src="${av}" style="width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover;">
           <div style="flex-grow: 1; min-width: 0;">
             <div style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${formatName(f.display_name, f.role, null)}</div>
@@ -710,7 +761,7 @@ if (document.getElementById('msgrFriendsList')) {
       }).join('');
     } catch(e) {
       console.error('loadMsgrFriends error:', e);
-      msgrFriendsList.innerHTML = '<div style="color: red; text-align: center; padding: 10px;">Error loading friends.<br><small>' + escapeHtml(String(e.message || e)) + '</small></div>';
+      msgrFriendsList.innerHTML = '<div style="color: red; text-align: center; padding: 10px;">Error loading contacts.<br><small>' + escapeHtml(String(e.message || e)) + '</small></div>';
     }
   }
 
@@ -903,7 +954,12 @@ if (document.getElementById('msgrFriendsList')) {
         window.addEventListener('pageshow', () => { pDelay = 3000; connectPresence(); });
       })();
 
-      loadMsgrFriends();
+      loadMsgrFriends().then(() => {
+        // Автооткрытие чата с профиля: /messages.html?to=ID&name=Nick
+        const toId = Number(urlParams.get('to'));
+        const toName = urlParams.get('name') || ('User #' + toId);
+        if (toId) openMsgrChat(toId, toName);
+      });
       setInterval(async () => {
         await fetchOnlineUsers();
         loadMsgrFriendsStatusOnly();
