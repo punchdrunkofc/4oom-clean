@@ -474,7 +474,7 @@ if (document.getElementById('threadList')) {
   if (currentUser) {
     const pb = document.getElementById('profileBox');
     if(pb) {
-      pb.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(currentUser.login)}"><img src="${currentUser.avatar || '...'}" class="avatar"></a><p class="profile__name"><a href="/profile.html?user=${encodeURIComponent(currentUser.login)}" style="text-decoration:none; color:inherit;">${formatName(currentUser.login, currentUser.role, currentUser.font)}</a> ${getRoleBadge(currentUser.role)}</p><p class="profile__status">online</p><button class="neon-btn" onclick="location.href='/settings.html'">settings</button><button class="neon-btn" onclick="localStorage.clear();location.reload()">logout</button>`;
+      pb.innerHTML = `<a href="/profile.html?user=${encodeURIComponent(currentUser.login)}"><img src="${currentUser.avatar || '...'}" class="avatar"></a><p class="profile__name"><a href="/profile.html?user=${encodeURIComponent(currentUser.login)}" style="text-decoration:none; color:inherit;">${formatName(currentUser.login, currentUser.role, currentUser.font)}</a> ${getRoleBadge(currentUser.role)}</p><p class="profile__status">online</p><button class="neon-btn" onclick="location.href='/settings.html'">settings</button><button class="neon-btn" onclick="fetch('/api/auth/logout',{method:'POST'}).finally(()=>{localStorage.clear();location.href='/'})">logout</button>`;
     }
   }
   
@@ -815,6 +815,29 @@ if (document.getElementById('msgrFriendsList')) {
     });
   }
 
+  function formatMsgTime(ts) {
+    if (!ts) return '';
+    const d = new Date(Number(ts) < 1e12 ? Number(ts) * 1000 : Number(ts));
+    if (isNaN(d.getTime())) return '';
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    const t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (sameDay) return t;
+    return d.toLocaleDateString([], { day: '2-digit', month: '2-digit' }) + ' ' + t;
+  }
+
+  async function markChatRead(peerId) {
+    if (!currentUser || !peerId) return;
+    try {
+      await fetch('/api/messages/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: Number(currentUser.id), peer_id: Number(peerId) })
+      });
+      if (typeof window.refreshAlertsBadge === 'function') window.refreshAlertsBadge();
+    } catch (e) {}
+  }
+
   async function loadMsgrMessages() {
     if (!activeChatId || !currentUser) return;
     try {
@@ -826,6 +849,8 @@ if (document.getElementById('msgrFriendsList')) {
         return;
       }
       const messages = Array.isArray(data) ? data : [];
+      // Помечаем входящие как прочитанные
+      markChatRead(activeChatId);
       if (messages.length === 0) {
         msgrChatBox.innerHTML = '<div style="color: #888; text-align: center; margin-top: 10px;">No messages yet. Say hi!</div>';
       } else {
@@ -833,9 +858,14 @@ if (document.getElementById('msgrFriendsList')) {
         const wasAtBottom = msgrChatBox.scrollHeight - msgrChatBox.scrollTop - msgrChatBox.clientHeight < 40;
         msgrChatBox.innerHTML = messages.map(m => {
           const isMe = Number(m.sender_id) === myId;
-          return `<div style="margin-bottom: 6px; text-align: ${isMe ? 'right' : 'left'};">
-            <span style="background: ${isMe ? '#c0c0c0' : '#e0e0e0'}; padding: 2px 6px; border: 1px solid #808080; border-radius: 4px; display: inline-block; max-width: 80%; word-wrap: break-word;">
+          const timeStr = formatMsgTime(m.created_at);
+          const readMark = isMe
+            ? (Number(m.is_read) ? '<span style="color:#0066cc;margin-left:4px;" title="Read">✓✓</span>' : '<span style="color:#888;margin-left:4px;" title="Sent">✓</span>')
+            : '';
+          return `<div style="margin-bottom: 8px; text-align: ${isMe ? 'right' : 'left'};">
+            <span style="background: ${isMe ? '#c0c0c0' : '#e0e0e0'}; padding: 4px 8px; border: 1px solid #808080; border-radius: 4px; display: inline-block; max-width: 80%; word-wrap: break-word; text-align: left;">
               ${escapeHtml(m.body)}
+              <div style="font-size: 10px; color: #666; margin-top: 2px; font-family: Tahoma, sans-serif;">${timeStr}${readMark}</div>
             </span>
           </div>`;
         }).join('');
@@ -1250,3 +1280,276 @@ window.removeFriend = async function(friendId, friendName) {
     }
   } catch (e) { alert(e.message); }
 };
+
+
+// ================= 8. ЗВУКИ + АЛЕРТЫ + ГРОМКОСТЬ =================
+(function initSoundAndAlerts() {
+  const MSG_SOUNDS = {
+    message1: { file: 'message1.mp3', label: 'Pop' },
+    message2: { file: 'message2.mp3', label: 'Cup' },
+    message3: { file: 'message3.mp3', label: 'Clarinet' },
+    message4: { file: 'message4.mp3', label: 'Piano' }
+  };
+
+  function getVol() {
+    const v = parseFloat(localStorage.getItem('4oom_sound_vol'));
+    return isNaN(v) ? 0.7 : Math.min(1, Math.max(0, v));
+  }
+  function isMuted() {
+    return localStorage.getItem('4oom_sound_mute') === '1';
+  }
+  function getMsgSoundKey() {
+    const k = localStorage.getItem('4oom_msg_sound') || 'message1';
+    return MSG_SOUNDS[k] ? k : 'message1';
+  }
+
+  function playSe(filename) {
+    if (isMuted()) return;
+    try {
+      const a = new Audio('/audio/se/' + filename);
+      a.volume = getVol();
+      a.play().catch(() => {});
+    } catch (e) {}
+  }
+
+  window.playSe = playSe;
+  window.playMessageSound = function() {
+    playSe(MSG_SOUNDS[getMsgSoundKey()].file);
+  };
+  window.playNotificationSound = function() {
+    playSe('notification.mp3');
+  };
+  window.playClickSound = function() { playSe('click.mp3'); };
+  window.playSwitchSound = function() { playSe('switch.mp3'); };
+  window.playAcceptSound = function() { playSe('accept.mp3'); };
+  window.playSendSound = function() { playSe('send.mp3'); };
+
+  // Разблокировка автоплея
+  let soundUnlocked = false;
+  function unlockSound() {
+    if (soundUnlocked) return;
+    soundUnlocked = true;
+    try { new Audio().play().catch(() => {}); } catch (e) {}
+  }
+  document.addEventListener('click', unlockSound, { once: true });
+  document.addEventListener('keydown', unlockSound, { once: true });
+
+  // --- Панель громкости (верх страницы, справа) ---
+  let soundBar = document.getElementById('globalSoundBar');
+  if (!soundBar) {
+    soundBar = document.createElement('div');
+    soundBar.id = 'globalSoundBar';
+    soundBar.style.cssText = [
+      'position:fixed', 'top:8px', 'right:10px', 'z-index:10001',
+      'display:flex', 'align-items:center', 'gap:6px',
+      'background:#e0e0e0', 'border:2px solid',
+      'border-color:#fff #808080 #808080 #fff',
+      'padding:4px 8px', 'font-family:Tahoma,sans-serif', 'font-size:11px',
+      'box-shadow:1px 1px 0 #000'
+    ].join(';');
+    soundBar.innerHTML = `
+      <button type="button" id="soundMuteBtn" title="Mute/Unmute" style="padding:2px 6px;cursor:pointer;border:2px solid;border-color:#fff #808080 #808080 #fff;background:#c0c0c0;font-size:12px;">🔊</button>
+      <input type="range" id="soundVolSlider" min="0" max="100" value="${Math.round(getVol()*100)}" title="Volume" style="width:80px;cursor:pointer;">
+      <select id="msgSoundSelect" title="Message sound" style="font-size:11px;max-width:90px;">
+        <option value="message1">Pop</option>
+        <option value="message2">Cup</option>
+        <option value="message3">Clarinet</option>
+        <option value="message4">Piano</option>
+      </select>
+    `;
+    document.body.appendChild(soundBar);
+
+    const muteBtn = document.getElementById('soundMuteBtn');
+    const volSlider = document.getElementById('soundVolSlider');
+    const msgSelect = document.getElementById('msgSoundSelect');
+
+    function syncMuteUi() {
+      muteBtn.textContent = isMuted() ? '🔇' : '🔊';
+      volSlider.disabled = isMuted();
+    }
+    syncMuteUi();
+    msgSelect.value = getMsgSoundKey();
+
+    muteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      localStorage.setItem('4oom_sound_mute', isMuted() ? '0' : '1');
+      syncMuteUi();
+      if (!isMuted()) playSe('click.mp3');
+    });
+    volSlider.addEventListener('input', () => {
+      localStorage.setItem('4oom_sound_vol', String(volSlider.value / 100));
+      localStorage.setItem('4oom_sound_mute', '0');
+      syncMuteUi();
+    });
+    volSlider.addEventListener('change', () => {
+      playMessageSound();
+    });
+    msgSelect.addEventListener('change', () => {
+      localStorage.setItem('4oom_msg_sound', msgSelect.value);
+      playMessageSound();
+    });
+  }
+
+  // --- Клики: switch / accept / send / click ---
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('a, button, input[type="submit"], .neon-btn, .win-btn, .delete-btn');
+    if (!el) return;
+    if (el.id === 'soundMuteBtn' || el.closest('#globalSoundBar')) return;
+
+    const tag = el.tagName;
+    const href = (el.getAttribute && el.getAttribute('href')) || '';
+    const onclick = (el.getAttribute && el.getAttribute('onclick')) || '';
+    const id = el.id || '';
+    const text = (el.textContent || '').toLowerCase();
+    const type = (el.getAttribute && el.getAttribute('type')) || '';
+
+    // Навигация на другую страницу
+    const isNav = (tag === 'A' && href && !href.startsWith('#') && !href.startsWith('javascript:'))
+      || /location\.href|location\.assign/.test(onclick)
+      || id === 'msgrBtn'
+      || (text.includes('settings') && tag === 'BUTTON');
+
+    // Accept / apply / save
+    const isAccept = /acceptFriend|accept friend|apply|save/i.test(onclick + text + id)
+      || id === 'saveBtn'
+      || id.startsWith('save');
+
+    // Send message / form submit buttons
+    const isSend = type === 'submit'
+      || id === 'msgrSendBtn'
+      || /send/i.test(text)
+      || el.closest('#msgrForm, #chatForm, #bugForm, #replyForm, #dmForm');
+
+    if (isNav) playSe('switch.mp3');
+    else if (isAccept) playSe('accept.mp3');
+    else if (isSend) playSe('send.mp3');
+    else playSe('click.mp3');
+  }, true);
+
+  // Также send на submit форм
+  document.addEventListener('submit', (e) => {
+    const id = e.target && e.target.id;
+    if (id === 'msgrForm' || id === 'chatForm' || id === 'bugForm' || id === 'replyForm' || id === 'dmForm') {
+      playSe('send.mp3');
+    }
+  }, true);
+
+  // --- Плашка алертов ---
+  if (!currentUser) return;
+
+  let badge = document.getElementById('globalAlertsBadge');
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.id = 'globalAlertsBadge';
+    badge.style.cssText = [
+      'position:fixed', 'top:42px', 'right:10px', 'z-index:10000',
+      'display:none', 'flex-direction:column', 'gap:6px',
+      'font-family:Tahoma,sans-serif', 'font-size:12px', 'max-width:280px'
+    ].join(';');
+    document.body.appendChild(badge);
+  }
+
+  let lastUnreadMsg = -1;
+  let lastFriendReq = -1;
+  let titleBlinkTimer = null;
+  const baseTitle = document.title;
+
+  function startTitleBlink(unreadMsg, friendReq) {
+    stopTitleBlink();
+    if (document.hasFocus() && !document.hidden) return;
+    const total = unreadMsg + friendReq;
+    if (total <= 0) return;
+    let on = false;
+    const msg = unreadMsg > 0
+      ? `(${unreadMsg}) New message!`
+      : `(${friendReq}) Friend request!`;
+    titleBlinkTimer = setInterval(() => {
+      on = !on;
+      document.title = on ? msg : baseTitle;
+    }, 1000);
+  }
+  function stopTitleBlink() {
+    if (titleBlinkTimer) {
+      clearInterval(titleBlinkTimer);
+      titleBlinkTimer = null;
+    }
+    document.title = baseTitle;
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) stopTitleBlink();
+  });
+  window.addEventListener('focus', () => stopTitleBlink());
+
+  function notifyBrowser(title, body) {
+    try {
+      if (!('Notification' in window)) return;
+      if (Notification.permission === 'granted') {
+        const n = new Notification(title, { body, icon: '/favicon.svg', tag: '4oom-alert' });
+        setTimeout(() => n.close(), 5000);
+      } else if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    } catch (e) {}
+  }
+
+  function renderBadge(unreadMsg, friendReq) {
+    const parts = [];
+    if (unreadMsg > 0) {
+      parts.push(`<a href="/messages.html" style="display:block;background:#ffffcc;border:2px solid #808080;padding:6px 10px;text-decoration:none;color:#000;box-shadow:2px 2px 0 #000;">💬 New messages: <b>${unreadMsg}</b></a>`);
+    }
+    if (friendReq > 0) {
+      parts.push(`<a href="/" style="display:block;background:#ccffcc;border:2px solid #808080;padding:6px 10px;text-decoration:none;color:#000;box-shadow:2px 2px 0 #000;">🔔 Friend requests: <b>${friendReq}</b></a>`);
+    }
+    if (parts.length === 0) {
+      badge.style.display = 'none';
+      badge.innerHTML = '';
+      stopTitleBlink();
+    } else {
+      badge.style.display = 'flex';
+      badge.innerHTML = parts.join('');
+      if (document.hidden || !document.hasFocus()) startTitleBlink(unreadMsg, friendReq);
+    }
+  }
+
+  async function refreshAlertsBadge() {
+    try {
+      const res = await fetch('/api/alerts?user_id=' + encodeURIComponent(currentUser.id));
+      if (!res.ok) return;
+      const data = await res.json();
+      const unreadMsg = Number(data.unread_messages) || 0;
+      const friendReq = Number(data.friend_requests) || 0;
+
+      if (lastUnreadMsg >= 0 && unreadMsg > lastUnreadMsg) {
+        playMessageSound();
+        if (document.hidden) {
+          notifyBrowser('4OOM', 'New private message');
+          startTitleBlink(unreadMsg, friendReq);
+        }
+      }
+      if (lastFriendReq >= 0 && friendReq > lastFriendReq) {
+        playNotificationSound();
+        if (document.hidden) {
+          notifyBrowser('4OOM', 'New friend request');
+          startTitleBlink(unreadMsg, friendReq);
+        }
+      }
+      lastUnreadMsg = unreadMsg;
+      lastFriendReq = friendReq;
+      renderBadge(unreadMsg, friendReq);
+    } catch (e) {}
+  }
+
+  window.refreshAlertsBadge = refreshAlertsBadge;
+  refreshAlertsBadge();
+  setInterval(refreshAlertsBadge, 10000);
+
+  // Запрос разрешения на уведомления после первого клика
+  document.addEventListener('click', () => {
+    try {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    } catch (e) {}
+  }, { once: true });
+})();
