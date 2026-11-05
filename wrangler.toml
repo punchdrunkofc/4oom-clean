@@ -2,6 +2,9 @@ name = "4oom-new"
 main = "_worker.js"
 compatibility_date = "2026-11-04"
 
+[vars]
+GH_CLIENT_ID = "Ov23lizHNX7YRbpfVOXo"
+
 [assets]
 directory = "."
 binding = "ASSETS"
@@ -15,8 +18,7 @@ database_id = "2dbdb197-286d-4e55-a679-14224d5cd58a"
 bindings = [
   { name = "CHAT_ROOM", class_name = "ChatRoom" },
   { name = "BUG_ROOM", class_name = "BugRoom" }
-]
-
+  
 # Оставляем старую миграцию для ChatRoom (если он уже был создан)
 [[migrations]]
 tag = "v1"
