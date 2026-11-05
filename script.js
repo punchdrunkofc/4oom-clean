@@ -516,18 +516,31 @@ if (document.getElementById('msgrFriendsList')) {
     }
     msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888;">Loading...</div>';
     try {
-      await fetchOnlineUsers();
-      const res = await fetch('/api/friends/list?user_id=' + currentUser.id);
+      // Онлайн-статус не должен блокировать список друзей
+      fetchOnlineUsers().catch(() => {});
+      const res = await fetch('/api/friends/list?user_id=' + encodeURIComponent(currentUser.id));
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error('HTTP ' + res.status + ' ' + errText);
+      }
       const friends = await res.json();
       if (!Array.isArray(friends) || friends.length === 0) {
         msgrFriendsList.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">No friends yet. Add someone on the main page.</div>';
         return;
       }
-      msgrFriendsList.innerHTML = friends.map(f => {
-        const safeName = escapeHtml(f.display_name).replace(/'/g, "\\'");
+      // Убираем дубликаты (на случай старых данных)
+      const seen = new Set();
+      const unique = friends.filter(f => {
+        if (seen.has(f.id)) return false;
+        seen.add(f.id);
+        return true;
+      });
+      msgrFriendsList.innerHTML = unique.map(f => {
+        const safeName = String(f.display_name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const av = f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2220%22 height=%2220%22 fill=%22%23ccc%22/%3E%3C/svg%3E';
         return `
         <div style="padding: 6px; border-bottom: 1px dotted #ccc; cursor: pointer; display: flex; align-items: center; gap: 6px;" onclick="openMsgrChat(${f.id}, '${safeName}')">
-          <img src="${f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2220%22 height=%2220%22 fill=%22%23ccc%22/%3E%3C/svg%3E'}" style="width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover;">
+          <img src="${av}" style="width: 24px; height: 24px; border: 1px solid #808080; object-fit: cover;">
           <div style="flex-grow: 1; min-width: 0;">
             <div style="font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${formatName(f.display_name, f.role, null)}</div>
             <div>${statusHtml(f.display_name)}</div>
@@ -535,7 +548,8 @@ if (document.getElementById('msgrFriendsList')) {
         </div>`;
       }).join('');
     } catch(e) {
-      msgrFriendsList.innerHTML = '<div style="color: red; text-align: center;">Error loading friends.</div>';
+      console.error('loadMsgrFriends error:', e);
+      msgrFriendsList.innerHTML = '<div style="color: red; text-align: center; padding: 10px;">Error loading friends.<br><small>' + escapeHtml(String(e.message || e)) + '</small></div>';
     }
   }
 

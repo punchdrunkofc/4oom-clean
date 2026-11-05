@@ -16,6 +16,13 @@ export class ChatRoom extends DurableObject {
   }
 
   async fetch(request) {
+    const url = new URL(request.url);
+    
+    // HTTP: список онлайн-пользователей
+    if (url.pathname === '/online' || url.pathname.endsWith('/online')) {
+      return this.getOnline();
+    }
+
     const upgradeHeader = request.headers.get('Upgrade');
     if (!upgradeHeader || upgradeHeader !== 'websocket') return new Response('Expected WebSocket', { status: 426 });
     
@@ -23,7 +30,6 @@ export class ChatRoom extends DurableObject {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     
-    const url = new URL(request.url);
     const nick = url.searchParams.get('nick') || 'guest';
     const role = url.searchParams.get('role') || 'user';
     const userId = url.searchParams.get('uid') || '0';
@@ -67,6 +73,14 @@ export class ChatRoom extends DurableObject {
     const onlineUsers = [...new Set(Array.from(this.sessions.values()).map(s => s.nick))];
     const msg = JSON.stringify({ type: 'online', users: onlineUsers });
     this.ctx.getWebSockets().forEach((client) => { try { client.send(msg); } catch (e) {} });
+  }
+
+  // HTTP: текущий список онлайна (для статуса в личных сообщениях)
+  async getOnline() {
+    const onlineUsers = [...new Set(Array.from(this.sessions.values()).map(s => s.nick))];
+    return new Response(JSON.stringify({ users: onlineUsers }), {
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
   }
 }
 
@@ -156,6 +170,13 @@ export default {
       const id = env.BUG_ROOM.idFromName('global_bugs');
       const stub = env.BUG_ROOM.get(id);
       return stub.fetch(new Request(url.origin + `/ws?nick=${encodeURIComponent(nick)}&role=${encodeURIComponent(role)}&uid=${encodeURIComponent(uid)}`, request));
+    }
+
+    // Список кто сейчас в лобби-чате (для статуса в личных сообщениях)
+    if (url.pathname === '/api/online' && request.method === 'GET') {
+      const id = env.CHAT_ROOM.idFromName('global');
+      const stub = env.CHAT_ROOM.get(id);
+      return stub.fetch(new Request(url.origin + '/online', { method: 'GET' }));
     }
 
     // --- AUTH (GITHUB) ---
@@ -254,13 +275,30 @@ export default {
       if (url.pathname === '/api/friends/accept' && request.method === 'POST') {
         const body = await request.json();
         if (!body.user_id || !body.friend_id) return new Response(JSON.stringify({ error: 'Missing data' }), { status: 400, headers: cors });
+        // body.user_id = кто принимает; body.friend_id = кто отправил заявку
         await env.DB.prepare(`UPDATE friends SET status = 'accepted' WHERE user_id = ? AND friend_id = ?`).bind(body.friend_id, body.user_id).run();
+        // Создаём обратную запись, чтобы дружба была двусторонней
+        const reverse = await env.DB.prepare(`SELECT * FROM friends WHERE user_id = ? AND friend_id = ?`).bind(body.user_id, body.friend_id).first();
+        if (!reverse) {
+          await env.DB.prepare(`INSERT INTO friends (user_id, friend_id, status) VALUES (?, ?, 'accepted')`).bind(body.user_id, body.friend_id).run();
+        } else {
+          await env.DB.prepare(`UPDATE friends SET status = 'accepted' WHERE user_id = ? AND friend_id = ?`).bind(body.user_id, body.friend_id).run();
+        }
         return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
       if (url.pathname === '/api/friends/list' && request.method === 'GET') {
         const userId = url.searchParams.get('user_id');
         if (!userId) return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400, headers: cors });
-        const { results } = await env.DB.prepare(`SELECT u.id, u.display_name, u.avatar_url, u.role FROM friends f JOIN users u ON f.friend_id = u.id WHERE f.user_id = ? AND f.status = 'accepted'`).bind(userId).all();
+        // Двусторонний список друзей
+        const { results } = await env.DB.prepare(`
+          SELECT u.id, u.display_name, u.avatar_url, u.role FROM friends f
+          JOIN users u ON u.id = f.friend_id
+          WHERE f.user_id = ? AND f.status = 'accepted'
+          UNION
+          SELECT u.id, u.display_name, u.avatar_url, u.role FROM friends f
+          JOIN users u ON u.id = f.user_id
+          WHERE f.friend_id = ? AND f.status = 'accepted'
+        `).bind(userId, userId).all();
         return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
       }
       if (url.pathname === '/api/friends/remove' && request.method === 'POST') {
