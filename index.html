@@ -136,6 +136,18 @@
   </div>
 </section>
 
+<section class="window" id="secretCodesWindow" style="max-width: 320px; margin: 16px auto 24px; width: 100%;">
+  <div class="window__bar"><span>🔐 secret codes</span></div>
+  <div style="padding: 10px; background: #e0e0e0;">
+    <form id="secretCodeForm" style="display: flex; gap: 4px; align-items: center;">
+      <input type="text" id="secretCodeInput" placeholder="enter code..." autocomplete="off" spellcheck="false"
+        style="flex-grow: 1; padding: 4px 6px; border: 2px solid; border-color: #808080 #fff #fff #808080; font-family: Tahoma, sans-serif; font-size: 12px; background: #fff;">
+      <button type="submit" class="neon-btn" style="margin: 0; padding: 4px 10px; font-size: 11px;">OK</button>
+    </form>
+    <div id="secretCodeStatus" style="margin-top: 6px; font-size: 11px; color: #666; font-family: Tahoma, sans-serif; min-height: 14px;"></div>
+  </div>
+</section>
+  
 <footer class="footer"><p>4OOM © 2024</p></footer>
 
 <div id="msgrModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
