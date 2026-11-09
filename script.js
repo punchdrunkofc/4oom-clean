@@ -811,10 +811,10 @@ if (document.getElementById('msgrFriendsList')) {
       const safeName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       const av = f.avatar_url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2220%22 height=%2220%22%3E%3Crect width=%2220%22 height=%2220%22 fill=%22%23ccc%22/%3E%3C/svg%3E';
       const active = activeChatId && Number(activeChatId) === Number(f.id);
-      return `<div class="msgr-contact" data-id="${f.id}" data-name="${escapeHtml(name)}" style="padding:6px;border-bottom:1px dotted #ccc;cursor:pointer;display:flex;align-items:center;gap:6px;${active ? 'background:#d0d0d0;' : ''}" onclick="openMsgrChat(${f.id}, '${safeName}')">
-          <img src="${av}" style="width:24px;height:24px;border:1px solid #808080;object-fit:cover;">
+      return `<div class="msgr-contact" data-id="${f.id}" data-name="${escapeHtml(name)}" style="padding:10px 8px;border-bottom:1px dotted #ccc;cursor:pointer;display:flex;align-items:center;gap:10px;min-height:52px;${active ? 'background:#d0d0d0;' : ''}" onclick="openMsgrChat(${f.id}, '${safeName}')">
+          <img src="${av}" style="width:40px;height:40px;border:1px solid #808080;object-fit:cover;flex-shrink:0;">
           <div style="flex-grow:1;min-width:0;">
-            <div class="msgr-contact-name" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(name)}</div>
+            <div class="msgr-contact-name" style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(name)}</div>
             <div class="msgr-contact-status">${statusHtml(name)}</div>
           </div>
         </div>`;
@@ -1634,4 +1634,137 @@ font-family:Tahoma,sans-serif;font-size:11px;box-shadow:1px 1px 0 #000;}
     if (typeof playSe === 'function') playSe('click.mp3');
     input.value = '';
   });
+})();
+
+
+// ================= MOBILE SIDE MENU + PANEL NAV =================
+(function initMobileNav() {
+  const menuBtn = document.getElementById('menuBtn');
+  const sideMenu = document.getElementById('sideMenu');
+  const overlay = document.getElementById('sideOverlay');
+  const closeBtn = document.getElementById('sideCloseBtn');
+  const titleEl = document.getElementById('headerPanelTitle');
+  if (!sideMenu || !menuBtn) return;
+
+  const titles = {
+    threads: '4OOM — Threads',
+    lobby: '4OOM — Lobby Chat',
+    bugs: '4OOM — Bugfix',
+    users: '4OOM — Users',
+    profile: '4OOM — Profile',
+    rules: '4OOM — Rules',
+    secrets: '4OOM — Secret Codes'
+  };
+
+  function openMenu() {
+    sideMenu.classList.add('is-open');
+    if (overlay) {
+      overlay.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
+    }
+  }
+  function closeMenu() {
+    sideMenu.classList.remove('is-open');
+    if (overlay) {
+      overlay.classList.remove('is-open');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function showPanel(name) {
+    const panels = document.querySelectorAll('.panel-section');
+    // On narrow screens: only one panel. On wide: keep all visible via CSS media query.
+    const narrow = window.matchMedia('(max-width: 899px)').matches;
+    panels.forEach(sec => {
+      if (narrow) {
+        sec.classList.toggle('is-active', sec.getAttribute('data-panel') === name);
+      } else {
+        sec.classList.add('is-active');
+      }
+    });
+    document.querySelectorAll('.side-nav-btn[data-panel]').forEach(btn => {
+      btn.classList.toggle('is-active', btn.getAttribute('data-panel') === name);
+    });
+    if (titleEl) titleEl.textContent = titles[name] || '4OOM';
+    if (narrow) {
+      const el = document.getElementById('panel-' + name) || document.querySelector('[data-panel="' + name + '"]');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    try { history.replaceState(null, '', '#' + name); } catch (e) {}
+  }
+
+  menuBtn.addEventListener('click', openMenu);
+  if (closeBtn) closeBtn.addEventListener('click', closeMenu);
+  if (overlay) overlay.addEventListener('click', closeMenu);
+
+  document.querySelectorAll('.side-nav-btn[data-panel]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = btn.getAttribute('data-panel');
+      showPanel(name);
+      closeMenu();
+      if (typeof playSe === 'function') playSe('switch.mp3');
+    });
+  });
+
+  // Initial panel from hash or default threads
+  const hash = (location.hash || '').replace(/^#/, '');
+  const start = titles[hash] ? hash : 'threads';
+  showPanel(start);
+
+  window.addEventListener('resize', () => {
+    const active = document.querySelector('.side-nav-btn[data-panel].is-active');
+    const name = active ? active.getAttribute('data-panel') : 'threads';
+    showPanel(name);
+  });
+})();
+
+// ================= MESSAGES: mobile list <-> chat =================
+(function initMsgrMobileChrome() {
+  const page = document.querySelector('.msgr-page');
+  const backBtn = document.getElementById('msgrBackBtn');
+  if (!page) return;
+
+  function showList() {
+    page.classList.remove('is-chat-open');
+  }
+  function showChat() {
+    page.classList.add('is-chat-open');
+  }
+
+  if (backBtn) {
+    backBtn.addEventListener('click', () => {
+      showList();
+      if (typeof playSe === 'function') playSe('switch.mp3');
+    });
+  }
+
+  // Patch openMsgrChat to open chat pane on mobile
+  const prevOpen = window.openMsgrChat;
+  if (typeof prevOpen === 'function') {
+    window.openMsgrChat = async function(friendId, friendName) {
+      await prevOpen(friendId, friendName);
+      showChat();
+    };
+  } else {
+    // if defined later, observe
+    Object.defineProperty(window, 'openMsgrChat', {
+      configurable: true,
+      set: function(fn) {
+        Object.defineProperty(window, 'openMsgrChat', {
+          configurable: true,
+          writable: true,
+          value: async function(friendId, friendName) {
+            await fn(friendId, friendName);
+            showChat();
+          }
+        });
+      }
+    });
+  }
+
+  // If opened with ?to=, open chat pane after load
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('to')) {
+    setTimeout(showChat, 400);
+  }
 })();
