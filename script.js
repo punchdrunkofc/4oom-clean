@@ -1673,7 +1673,7 @@ font-family:Tahoma,sans-serif;font-size:11px;box-shadow:1px 1px 0 #000;}
 
   function showPanel(name) {
     const panels = document.querySelectorAll('.panel-section');
-    // On narrow screens: only one panel. On wide: keep all visible via CSS media query.
+    // Phone: one panel. Desktop: all panels visible (CSS), menu only scrolls.
     const narrow = window.matchMedia('(max-width: 899px)').matches;
     panels.forEach(sec => {
       if (narrow) {
@@ -1685,10 +1685,13 @@ font-family:Tahoma,sans-serif;font-size:11px;box-shadow:1px 1px 0 #000;}
     document.querySelectorAll('.side-nav-btn[data-panel]').forEach(btn => {
       btn.classList.toggle('is-active', btn.getAttribute('data-panel') === name);
     });
-    if (titleEl) titleEl.textContent = titles[name] || '4OOM';
-    if (narrow) {
-      const el = document.getElementById('panel-' + name) || document.querySelector('[data-panel="' + name + '"]');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (titleEl) {
+      titleEl.textContent = narrow ? (titles[name] || '4OOM') : '4OOM';
+    }
+    const el = document.getElementById('panel-' + name) || document.querySelector('[data-panel="' + name + '"]');
+    if (el) {
+      if (narrow) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     try { history.replaceState(null, '', '#' + name); } catch (e) {}
   }

@@ -571,7 +571,7 @@ input, textarea, select, button {
 }
 .side-nav-link { box-sizing: border-box; }
 
-/* Panel switching on main page: show one section at a time on narrow screens */
+/* Mobile: one panel at a time. Desktop: classic multi-window layout. */
 .layout--mobile-stack {
   display: block;
   max-width: 1000px;
@@ -581,13 +581,41 @@ input, textarea, select, button {
 .panel-section { display: none; }
 .panel-section.is-active { display: block; }
 
-/* Desktop: show all panels stacked if wide enough, still sequential */
+/* Desktop / tablet landscape: restore previous window arrangement */
 @media (min-width: 900px) {
-  .panel-section { display: block; }
-  .layout--mobile-stack {
-    /* keep sequential stack as requested */
+  .panel-section {
+    display: block !important; /* ignore mobile panel toggling */
   }
-  /* On desktop keep side menu available but panels all visible */
+
+  .layout--mobile-stack {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 12px;
+    max-width: 1000px;
+    margin: 0 auto;
+    align-items: start;
+  }
+
+  /* Threads left, profile right (original home layout) */
+  .layout--mobile-stack > [data-panel="threads"] {
+    grid-column: 1;
+    grid-row: 1;
+    margin-top: 0 !important;
+  }
+  .layout--mobile-stack > [data-panel="profile"] {
+    grid-column: 2;
+    grid-row: 1;
+    margin-top: 0 !important;
+  }
+
+  /* Everything else full width under the top row */
+  .layout--mobile-stack > [data-panel="lobby"],
+  .layout--mobile-stack > [data-panel="bugs"],
+  .layout--mobile-stack > [data-panel="users"],
+  .layout--mobile-stack > [data-panel="rules"],
+  .layout--mobile-stack > [data-panel="secrets"] {
+    grid-column: 1 / -1;
+  }
 }
 
 /* Messenger mobile: list OR chat */
@@ -713,4 +741,17 @@ input, textarea, select, button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Desktop: slightly tighter controls than phone, still readable */
+@media (min-width: 900px) {
+  body { font-size: 13px; padding: 12px; padding-bottom: 12px; }
+  .neon-btn { min-height: 0; padding: 6px 14px; font-size: 12px; }
+  .win-btn { width: 18px; height: 16px; font-size: 10px; min-width: 18px; }
+  .thread { padding: 6px 8px; min-height: 0; }
+  .thread__title { font-size: inherit; }
+  .avatar { width: 80px; height: 80px; font-size: 40px; }
+  input, textarea, select, button { font-size: inherit; }
+  .side-nav-btn { font-size: 13px; padding: 10px 12px; min-height: 40px; }
+  .logo { font-size: 36px; }
 }
