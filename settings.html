@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>4OOM — Settings</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1">
 <link rel="stylesheet" href="/style.css">
@@ -9,81 +10,93 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 <style>
   .preview-container { margin-top: 12px; border: 2px solid var(--win-dark); background: var(--win-bg); }
-  .preview-banner { width: 100%; height: 300px; background: #808080; object-fit: cover; display: block; border-bottom: 2px solid var(--win-dark); }
-  .preview-bio { padding: 8px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px; font-family: 'Times New Roman', serif; min-height: 40px; font-size: 12px; }
-  
-  /* КОНТЕЙНЕР ДЛЯ КРОППЕРА */
-  .av_cropper-container { 
-    width: 100%; 
-    height: 0px; 
-    background: #e0e0e0; 
-    margin-bottom: 12px; 
-    border: 2px solid #808080; 
-    overflow: hidden; 
-    position: relative;
-    opacity: 0; /* Невидим изначально */
-    pointer-events: none; /* Не кликается изначально */
-    transition: opacity 0.2s;
-  }
-  /* Когда добавляем класс active, он становится видимым */
-  .av_cropper-container.active {
-    opacity: 1;
-    height: 300px; 
-    pointer-events: auto;
-  }
-  /* Картинка внутри */
-  .av_cropper-container img {
+  .preview-banner { width: 100%; height: 180px; background: #808080; object-fit: cover; display: block; border-bottom: 2px solid var(--win-dark); }
+  .preview-bio { padding: 8px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px; font-family: 'Times New Roman', serif; min-height: 40px; font-size: 13px; }
+
+  .settings-form label {
     display: block;
-    max-width: 100%;
+    margin: 10px 0 4px;
+    font-size: 13px;
+    font-weight: bold;
+  }
+  .settings-form input[type="text"],
+  .settings-form input[type="file"],
+  .settings-form textarea,
+  .settings-form select {
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+    border: 2px solid;
+    border-color: #808080 #fff #fff #808080;
+    background: #fff;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+  }
+  .settings-form textarea { min-height: 110px; font-family: 'Times New Roman', serif; }
+  .settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .settings-actions .neon-btn {
+    flex: 1 1 120px;
+    min-height: 44px;
   }
 
-  .ban_cropper-container { 
-    width: 100%; 
-    height: 0px; 
-    background: #e0e0e0; 
-    margin-bottom: 12px; 
-    border: 2px solid #808080; 
-    overflow: hidden; 
+  .av_cropper-container,
+  .ban_cropper-container,
+  .bg_cropper-container {
+    width: 100%;
+    height: 0;
+    background: #e0e0e0;
+    margin-bottom: 12px;
+    border: 2px solid #808080;
+    overflow: hidden;
     position: relative;
-    opacity: 0; /* Невидим изначально */
-    pointer-events: none; /* Не кликается изначально */
+    opacity: 0;
+    pointer-events: none;
     transition: opacity 0.2s;
   }
-  /* Когда добавляем класс active, он становится видимым */
-  .ban_cropper-container.active {
-    opacity: 1;
-    height: 300px; 
-    pointer-events: auto;
-  }
-  /* Картинка внутри */
-  .ban_cropper-container img {
-    display: block;
-    max-width: 100%;
-    
-  }
-
-  .bg_cropper-container { 
-    width: 100%; 
-    height: 0px; 
-    background: #e0e0e0; 
-    margin-bottom: 12px; 
-    border: 2px solid #808080; 
-    overflow: hidden; 
-    position: relative;
-    opacity: 0; /* Невидим изначально */
-    pointer-events: none; /* Не кликается изначально */
-    transition: opacity 0.2s;
-  }
-  /* Когда добавляем класс active, он становится видимым */
+  .av_cropper-container.active,
+  .ban_cropper-container.active,
   .bg_cropper-container.active {
     opacity: 1;
-    height: 300px; 
+    height: 280px;
     pointer-events: auto;
   }
-  /* Картинка внутри */
+  .av_cropper-container img,
+  .ban_cropper-container img,
   .bg_cropper-container img {
     display: block;
     max-width: 100%;
+  }
+
+  @media (max-width: 720px) {
+    .preview-banner { height: 120px; }
+    .av_cropper-container.active,
+    .ban_cropper-container.active,
+    .bg_cropper-container.active {
+      height: min(55vh, 320px);
+    }
+    .settings-form { padding: 12px; }
+    #saveAvatarBtn, #saveBannerBtn, #saveBgBtn {
+      width: 100%;
+      min-height: 44px;
+    }
+  }
+  @media (min-width: 900px) {
+    .preview-banner { height: 300px; }
+    .av_cropper-container.active,
+    .ban_cropper-container.active,
+    .bg_cropper-container.active { height: 300px; }
+    .settings-form input[type="text"],
+    .settings-form input[type="file"],
+    .settings-form textarea,
+    .settings-form select {
+      padding: 4px;
+      font-size: 13px;
+    }
   }
 </style>
 </head>
@@ -91,18 +104,27 @@
 <video id="bgVideo" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none; filter: sepia(1) hue-rotate(220deg) saturate(3) brightness(0.6);"></video>
 
 <header class="header window">
-  <div class="window__bar"><span>4OOM</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/'">×</button></div></div>
-  <nav class="nav"><a href="/" class="nav__link">← back to home</a></nav>
+  <div class="window__bar">
+    <span>4OOM — Settings</span>
+    <div class="window__buttons">
+      <button class="win-btn" onclick="location.href='/'" title="Close">×</button>
+    </div>
+  </div>
+  <nav class="nav">
+    <a href="/" class="nav__link">← home</a>
+    <a href="/messages.html" class="nav__link">messages</a>
+  </nav>
 </header>
+
 <main class="layout layout--single">
   <section class="window">
     <div class="window__bar"><span>🎨 Account Editor</span></div>
     <div class="settings-form">
       <label>Your nickname:</label>
-      <input type="text" id="setNick" placeholder="Enter nickname">
+      <input type="text" id="setNick" placeholder="Enter nickname" autocomplete="nickname">
       
       <label>Upload Avatar (Square):</label>
-      <input type="file" id="avatarFile" accept="image/*" style="margin-bottom: 8px;">
+      <input type="file" id="avatarFile" accept="image/*">
       <div id="avatarCropperContainer" class="av_cropper-container">
         <img id="avatarCropperImage" src="" alt="Avatar to crop">
       </div>
@@ -110,7 +132,7 @@
       <input type="hidden" id="setAvatar" value="">
 
       <label>Upload Profile Banner (Wide):</label>
-      <input type="file" id="bannerFile" accept="image/*" style="margin-bottom: 8px;">
+      <input type="file" id="bannerFile" accept="image/*">
       <div id="bannerCropperContainer" class="ban_cropper-container">
         <img id="bannerCropperImage" src="" alt="Banner to crop">
       </div>
@@ -118,7 +140,7 @@
       <input type="hidden" id="setBanner" value="">
 
       <label>Upload Custom Background (Image):</label>
-      <input type="file" id="bgFile" accept="image/*" style="margin-bottom: 8px;">
+      <input type="file" id="bgFile" accept="image/*">
       <div id="bgCropperContainer" class="bg_cropper-container">
         <img id="bgCropperImage" src="" alt="Background to crop">
       </div>
@@ -126,10 +148,10 @@
       <input type="hidden" id="setBg" value="">
 
       <label>Bio / Description:</label>
-      <textarea id="setBio" placeholder="Tell us about yourself..." style="width: 100%; height: 100px; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;"></textarea>
+      <textarea id="setBio" placeholder="Tell us about yourself..."></textarea>
 
       <label>Nickname Font:</label>
-      <select id="setFont" style="width: 100%; margin-bottom: 12px; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
+      <select id="setFont">
         <option value="">Default (MS Sans Serif)</option>
         <option value="'Times New Roman', serif">Times New Roman</option>
         <option value="'Courier New', monospace">Courier New</option>
@@ -140,8 +162,10 @@
         <option value="'Lucida Console', monospace">Lucida Console</option>
       </select>
 
-      <button class="neon-btn" id="saveBtn">SAVE</button>
-      <button class="neon-btn" id="cancelBtn">CANCEL</button>
+      <div class="settings-actions">
+        <button class="neon-btn" id="saveBtn" type="button">SAVE</button>
+        <button class="neon-btn" id="cancelBtn" type="button">CANCEL</button>
+      </div>
     </div>
   </section>
 
@@ -149,9 +173,9 @@
     <div class="window__bar"><span>👤 Live Profile Preview</span></div>
     <div class="preview-container">
       <img id="previewBanner" class="preview-banner" src="" alt="banner" style="display:none;">
-      <div style="display: flex; align-items: center; padding: 12px; gap: 12px;">
-        <img id="previewAvatar" class="avatar" style="width: 60px; height: 60px;" src="">
-        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; padding: 12px; gap: 12px; flex-wrap: wrap;">
+        <img id="previewAvatar" class="avatar" style="width: 60px; height: 60px;" src="" alt="">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0;">
           <span id="previewName" style="font-size: 20px; color: #000080; font-weight: bold;"></span>
           <span id="previewRole"></span>
         </div>

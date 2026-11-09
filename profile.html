@@ -1,24 +1,88 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>4OOM — Profile</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1">
 <link rel="stylesheet" href="/style.css">
 <style>
-  .banner-container { width: 100%; height: 300px; overflow: hidden; position: relative; border-bottom: 2px solid var(--win-dark); background: #000; }
+  .banner-container { width: 100%; height: 220px; overflow: hidden; position: relative; border-bottom: 2px solid var(--win-dark); background: #000; }
   .banner { width: 100%; height: 100%; object-fit: cover; object-position: center; display: block; }
-  .bio-box { padding: 12px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 12px; font-family: 'Times New Roman', serif; min-height: 50px; }
+  .bio-box { padding: 12px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 12px; font-family: 'Times New Roman', serif; min-height: 50px; font-size: 15px; line-height: 1.45; }
+  .profile-head {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    gap: 16px;
+    background: #e0e0e0;
+    border-bottom: 1px solid #808080;
+  }
+  .profile-head .avatar-lg {
+    width: 100px;
+    height: 100px;
+    border: 2px solid #fff;
+    box-shadow: 1px 1px 0 #000;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  #userName { font-family: Impact, sans-serif; font-size: 28px; color: #000080; margin: 0; word-break: break-word; }
+  #profileActions .neon-btn,
+  #editProfileBtn {
+    min-height: 40px;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+    display: inline-flex;
+    align-items: center;
+  }
+  #friendsList > div {
+    min-height: 48px;
+    padding: 10px 8px !important;
+  }
+  @media (max-width: 720px) {
+    .banner-container { height: 140px; }
+    .profile-head {
+      flex-direction: column;
+      align-items: flex-start;
+      text-align: left;
+      gap: 12px;
+      padding: 14px;
+    }
+    .profile-head .avatar-lg {
+      width: 88px;
+      height: 88px;
+      align-self: center;
+    }
+    .profile-head > div { width: 100%; }
+    #userName { font-size: 24px; text-align: center; width: 100%; }
+    #userRole { text-align: center; width: 100%; }
+    #editProfileBtn, #profileActions {
+      width: 100%;
+      justify-content: center;
+    }
+    #profileActions { display: flex !important; flex-wrap: wrap; gap: 8px; }
+    #profileActions .neon-btn { flex: 1 1 140px; justify-content: center; }
+    .bio-box { margin: 10px; padding: 12px; font-size: 16px; }
+  }
+  @media (min-width: 900px) {
+    .banner-container { height: 300px; }
+  }
 </style>
 </head>
 <body>
-<!-- Контейнер для видео-фона -->
 <video id="bgVideo" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none; filter: sepia(1) hue-rotate(220deg) saturate(3) brightness(0.6);"></video>
 
 <header class="header window">
-  <div class="window__bar"><span>4OOM</span><div class="window__buttons"><button class="win-btn" onclick="location.href='/settings.html'">⚙</button></div></div>
+  <div class="window__bar">
+    <span>4OOM — Profile</span>
+    <div class="window__buttons">
+      <button class="win-btn" onclick="location.href='/settings.html'" title="Settings">⚙</button>
+    </div>
+  </div>
   <nav class="nav">
     <a href="/" class="nav__link">← home</a>
+    <a href="/messages.html" class="nav__link">messages</a>
+    <a href="/settings.html" class="nav__link">settings</a>
   </nav>
 </header>
 
@@ -30,15 +94,15 @@
       <img id="userBanner" class="banner" src="" alt="banner">
     </div>
 
-    <div style="display: flex; align-items: center; padding: 16px; gap: 16px; background: #e0e0e0; border-bottom: 1px solid #808080;">
-      <img id="userAvatar" class="avatar" style="width: 100px; height: 100px; border: 2px solid #fff; box-shadow: 1px 1px 0 #000;" src="" alt="avatar">
+    <div class="profile-head">
+      <img id="userAvatar" class="avatar avatar-lg" src="" alt="avatar">
       
-      <div style="flex-grow: 1;">
+      <div style="flex-grow: 1; min-width: 0;">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-          <h2 id="userName" style="font-family: 'Impact', sans-serif; font-size: 28px; color: #000080; margin: 0;"></h2>
+          <h2 id="userName"></h2>
           <div id="userRole"></div>
         </div>
-        <a id="editProfileBtn" href="#" class="neon-btn" style="display: none; margin-top: 8px; padding: 2px 8px; font-size: 11px;">edit profile</a>
+        <a id="editProfileBtn" href="#" class="neon-btn" style="display: none; margin-top: 8px;">edit profile</a>
         <div id="profileActions" style="display: none; margin-top: 10px; flex-wrap: wrap; gap: 6px; align-items: center;"></div>
       </div>
     </div>
@@ -53,7 +117,6 @@
     </ul>
   </section>
 
-  <!-- БЛОК ДРУЗЕЙ -->
   <section class="window" id="friendsSection" style="margin-top: 12px; display: none;">
     <div class="window__bar"><span>🤝 friends</span></div>
     <div id="friendsList" style="padding: 12px; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px; font-family: 'Times New Roman', serif; min-height: 40px;">
@@ -64,19 +127,18 @@
 
 <footer class="footer"><p>4OOM © 2024</p></footer>
 
-<!-- МОДАЛЬНОЕ ОКНО ДЛЯ ЛС -->
 <div id="dmModal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;">
-  <div class="window" style="width: 400px; max-width: 90vw;">
+  <div class="window" style="width: 400px; max-width: 95vw;">
     <div class="window__bar">
       <span id="dmTitle">Message</span>
       <button class="win-btn" onclick="document.getElementById('dmModal').style.display = 'none'">×</button>
     </div>
-    <div id="dmMessages" style="height: 300px; overflow-y: auto; background: #fff; border-bottom: 2px solid #808080; padding: 8px; font-family: 'Times New Roman', serif; font-size: 13px;">
+    <div id="dmMessages" style="height: min(50vh, 320px); overflow-y: auto; background: #fff; border-bottom: 2px solid #808080; padding: 8px; font-family: 'Times New Roman', serif; font-size: 14px;">
       Loading...
     </div>
-    <div style="padding: 8px; background: #e0e0e0;">
-      <form id="dmForm" style="display: flex; gap: 4px;">
-        <input type="text" id="dmInput" placeholder="Type a message..." style="flex-grow: 1; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;">
+    <div style="padding: 10px; background: #e0e0e0;">
+      <form id="dmForm" style="display: flex; gap: 6px;">
+        <input type="text" id="dmInput" placeholder="Type a message..." style="flex-grow: 1; padding: 10px; border: 2px solid; border-color: #808080 #fff #fff #808080; font-size: 16px;">
         <button type="submit" class="neon-btn" style="margin: 0;">Send</button>
       </form>
     </div>
