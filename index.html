@@ -10,7 +10,7 @@
 <body>
 <video id="bgVideo" autoplay loop muted playsinline preload="auto" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; object-fit: cover; z-index: -1; display: none; filter: sepia(1) hue-rotate(220deg) saturate(3) brightness(0.6);"></video>
 
-<!-- Боковое меню -->
+<!-- Side menu (mobile + desktop shortcut) -->
 <div id="sideOverlay" class="side-overlay" aria-hidden="true"></div>
 <aside id="sideMenu" class="side-menu" aria-label="Navigation">
   <div class="side-menu__bar">
@@ -34,15 +34,15 @@
   <div class="window__bar">
     <div style="display:flex;align-items:center;gap:8px;">
       <button type="button" class="win-btn" id="menuBtn" title="Menu" aria-label="Open menu">☰</button>
-      <span id="headerPanelTitle">4OOM — Threads</span>
+      <span id="headerPanelTitle">4OOM</span>
     </div>
     <div class="window__buttons" style="position: relative;">
       <button class="win-btn" id="msgrBtn" title="Private Messages" style="margin-right: 4px;">💬</button>
       <button class="win-btn" id="notifBtn" title="Notifications" style="margin-right: 4px;">🔔<span id="notifCount" style="color: red; font-weight: bold; font-size: 10px;"></span></button>
       <button class="win-btn" onclick="location.href='/settings.html'">⚙</button>
-      <div id="notifDropdown" style="display: none; position: absolute; top: 25px; right: 0; width: min(280px, 90vw); background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; z-index: 1000; padding: 8px; font-size: 13px; box-shadow: 2px 2px 5px rgba(0,0,0,0.5);">
+      <div id="notifDropdown" style="display: none; position: absolute; top: 25px; right: 0; width: min(280px, 90vw); background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; z-index: 1000; padding: 8px; font-size: 12px; box-shadow: 2px 2px 5px rgba(0,0,0,0.5);">
         <div style="font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 4px;">Notifications</div>
-        <div id="notifList" style="max-height: 220px; overflow-y: auto;">
+        <div id="notifList" style="max-height: 200px; overflow-y: auto;">
           <div style="color: #888; text-align: center;">Loading...</div>
         </div>
       </div>
@@ -56,81 +56,46 @@
       <marquee class="marquee" scrollamount="4">★ welcome to 4OOM ★ be nice ★ no spam ★ have fun ★</marquee>
     </div>
   </div>
+  
+  <!-- Classic top nav: visible on desktop, useful on mobile too -->
+  <nav class="nav desktop-nav">
+    <a href="/" class="nav__link" id="nav-home" style="font-weight: bold;">home</a>
+    <select id="sectionSelect" class="nav__link" onchange="if(this.value) location.href='?section='+this.value;">
+      <option value="">boards</option>
+    </select>
+    <a href="?section=my" class="nav__link" id="nav-my">my threads</a>
+  </nav>
 </header>
 
-<main class="layout layout--mobile-stack">
-  <!-- THREADS -->
+<!-- PC layout: same as before — threads | profile, then full-width sections -->
+<main class="layout home-layout">
   <section class="window threads panel-section is-active" data-panel="threads" id="panel-threads">
     <div class="window__bar"><span>📁 threads/</span></div>
     <div class="toolbar">
       <button class="neon-btn" onclick="document.getElementById('createForm').style.display='block'">+ NEW THREAD</button>
-      <select id="sectionSelect" class="nav__link" onchange="if(this.value) location.href='?section='+this.value;" style="max-width:50%;">
-        <option value="">boards</option>
-      </select>
     </div>
     <ul class="thread-list" id="threadList"><li class="thread"><a href="#"><span class="thread__title">Loading...</span></a></li></ul>
     <div id="threadsPager" style="display: none; padding: 8px; background: #e0e0e0; border-top: 1px solid #808080; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;"></div>
     
     <div id="createForm" style="display:none; padding: 12px; background: #e0e0e0; border-top: 1px solid #808080;">
       <h3 style="margin-bottom: 8px;">Create Thread</h3>
-      <input type="text" id="newTitle" placeholder="Thread Title" style="width: 100%; margin-bottom: 8px; padding: 8px; font-size: 16px;">
-      <textarea id="newBody" placeholder="Post text" style="width: 100%; height: 100px; margin-bottom: 8px; padding: 8px; font-size: 16px;"></textarea>
-      <label style="font-size: 13px; display: block; margin-bottom: 4px;">Board name:</label>
+      <input type="text" id="newTitle" placeholder="Thread Title" style="width: 100%; margin-bottom: 8px; padding: 4px;">
+      <textarea id="newBody" placeholder="Post text" style="width: 100%; height: 80px; margin-bottom: 8px; padding: 4px;"></textarea>
+      <label style="font-size: 12px; display: block; margin-bottom: 4px;">Board name:</label>
       <div style="position: relative; margin-bottom: 8px;">
-        <input type="text" id="newSection" placeholder="board name" style="width: 100%; padding: 8px; font-size: 16px;" autocomplete="off">
+        <input type="text" id="newSection" placeholder="board name" style="width: 100%; padding: 4px;" autocomplete="off">
         <div id="sectionSuggestions" style="display: none; position: absolute; left: 0; right: 0; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; z-index: 100; max-height: 150px; overflow-y: auto;"></div>
       </div>
-      <label style="font-size: 13px; display: block; margin-bottom: 4px;">Attach Image:</label>
+      <label style="font-size: 12px; display: block; margin-bottom: 4px;">Attach Image:</label>
       <input type="file" id="newImageFile" accept="image/*" style="width: 100%; margin-bottom: 8px;">
-      <label style="font-size: 13px; display: block; margin-bottom: 4px;">Attach Music (mp3):</label>
+      <label style="font-size: 12px; display: block; margin-bottom: 4px;">Attach Music (mp3):</label>
       <input type="file" id="newMusicFile" accept="audio/*" style="width: 100%; margin-bottom: 8px;">
       <button class="neon-btn" onclick="submitThread()">Create</button>
       <button class="neon-btn" onclick="document.getElementById('createForm').style.display='none'">Cancel</button>
     </div>
   </section>
-  
-  <!-- LOBBY CHAT -->
-  <section class="window chat-box panel-section" data-panel="lobby" id="panel-lobby" style="margin-top: 12px;">
-    <div class="window__bar"><span>💬 Lobby Chat</span></div>
-    <div style="padding: 8px; height: min(50vh, 360px); overflow-y: auto; background: #fff; border-bottom: 2px solid #808080;" id="chatMessages">
-      <div style="color: #888; font-size: 13px; text-align: center;">Connecting...</div>
-    </div>
-    <div style="padding: 10px; background: #e0e0e0;">
-      <form id="chatForm" style="display: flex; gap: 6px;">
-        <input type="text" id="chatInput" placeholder="Say something..." style="flex-grow: 1; padding: 10px; border: 2px solid; border-color: #808080 #fff #fff #808080; font-size: 16px;" maxlength="100" autocomplete="off">
-        <button type="submit" class="neon-btn" style="margin: 0;">Send</button>
-      </form>
-      <div id="onlineUsers" style="font-size: 12px; color: #444; margin-top: 8px;">⚫ Loading...</div>
-    </div>
-  </section>
 
-  <!-- BUG CHAT -->
-  <section class="window chat-box panel-section" data-panel="bugs" id="panel-bugs" style="margin-top: 12px; border: 2px solid #800000;">
-    <div class="window__bar" style="background: linear-gradient(90deg, #800000, #b30000);"><span>🐞 Bug Reports / Fix Requests</span></div>
-    <div style="padding: 8px; height: min(50vh, 360px); overflow-y: auto; background: #fff; border-bottom: 2px solid #808080;" id="bugMessages">
-      <div style="color: #888; font-size: 13px; text-align: center;">Connecting...</div>
-    </div>
-    <div style="padding: 10px; background: #e0e0e0;">
-      <form id="bugForm" style="display: flex; gap: 6px;">
-        <input type="text" id="bugInput" placeholder="Describe the bug..." style="flex-grow: 1; padding: 10px; border: 2px solid; border-color: #808080 #fff #fff #808080; font-size: 16px;" maxlength="200" autocomplete="off">
-        <button type="submit" class="neon-btn" style="margin: 0; background: #ffcccc; border-color: #fff #808080 #808080 #fff; color: #800000; font-weight: bold;">Send</button>
-      </form>
-    </div>
-  </section>
-
-  <!-- USERS -->
-  <section class="window panel-section" data-panel="users" id="panel-users" style="margin-top: 12px;">
-    <div class="window__bar"><span>👥 Registered Users</span></div>
-    <div style="padding: 10px 10px 0 10px;">
-      <input type="text" id="userSearchInput" placeholder="Search by name..." style="width: 100%; padding: 10px; border: 2px solid; border-color: #808080 #fff #fff #808080; font-size: 16px; box-sizing: border-box;" autocomplete="off">
-    </div>
-    <div id="usersList" style="padding: 10px; max-height: 60vh; overflow-y: auto; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 10px;">
-      <div style="text-align: center; color: #888;">Loading users...</div>
-    </div>
-  </section>
-
-  <!-- PROFILE -->
-  <aside class="window profile panel-section" data-panel="profile" id="panel-profile" style="margin-top: 12px;">
+  <aside class="window profile panel-section is-active" data-panel="profile" id="panel-profile">
     <div class="window__bar"><span>👤 profile</span></div>
     <div class="profile__body" id="profileBox">
       <div class="avatar">?</div>
@@ -139,37 +104,72 @@
       <button class="neon-btn" onclick="location.href='/api/auth/login'">login with GitHub</button>
     </div>
   </aside>
-
-  <!-- RULES -->
-  <section class="window panel-section" data-panel="rules" id="panel-rules" style="max-width: 1000px; margin: 12px auto;">
-    <div class="window__bar"><span>📜 4OOM FORUM RULES</span></div>
-    <div style="padding: 16px; font-family: 'Times New Roman', serif; font-size: 15px; line-height: 1.6; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 12px;">
-      <p style="margin-bottom: 12px;"><b>1. Respect and Freedom:</b> Be human. No insults, bullying, threats, or hate speech. Freedom of speech doesn't mean freedom from consequences. Argue with arguments, not with people.</p>
-      <p style="margin-bottom: 12px;"><b>2. Content:</b> No illegal content (NSFL, weapons, etc.). If you post NSFW (18+), mark it in the title. No spam, ads, or massive piracy.</p>
-      <p style="margin-bottom: 12px;"><b>3. Tech & Security:</b> Don't break the forum (no hacking, DDoS, exploits). Don't upload files larger than 5 MB to the database. One person - one account.</p>
-      <p style="margin-bottom: 12px;"><b>4. Moderation:</b> Admins (Creator, Mod, Editor) can delete posts and issue bans. Don't argue with moderation in threads - write to a mod in chat. Don't impersonate admins.</p>
-      <p style="margin-bottom: 12px;"><b>5. Chat:</b> The chat is a smoking room. Flood with images/music is ok, but respect applies. No spam to inflate the "online" count.</p>
-      <p style="margin-bottom: 12px; color: #800000;"><b>⚠️ Sanctions:</b> 1st - warning. 2nd - 24h ban. 3rd - 7d ban. Severe violations (NSFL, hacking, harassment) - permanent ban.</p>
-      <div style="margin-top: 20px; padding-top: 12px; border-top: 1px dashed #ccc; text-align: center; color: #800000; font-weight: bold; font-size: 15px;">
-        <p>The main rule: Don't be an asshole. This forum exists for the pleasure and nostalgia of the old internet. If you want to contribute - share music, images, create threads. If you want to start a fight - go to Twitter.</p>
-        <p style="margin-top: 8px; color: #000080;">Have a pleasant stay!</p>
-      </div>
+  
+  <section class="window chat-box panel-section is-active home-full" data-panel="lobby" id="panel-lobby" style="margin-top: 12px;">
+    <div class="window__bar"><span>💬 Lobby Chat</span></div>
+    <div style="padding: 8px; height: 200px; overflow-y: auto; background: #fff; border-bottom: 2px solid #808080;" id="chatMessages">
+      <div style="color: #888; font-size: 11px; text-align: center;">Connecting...</div>
+    </div>
+    <div style="padding: 8px; background: #e0e0e0;">
+      <form id="chatForm" style="display: flex; gap: 4px;">
+        <input type="text" id="chatInput" placeholder="Say something..." style="flex-grow: 1; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;" maxlength="100" autocomplete="off">
+        <button type="submit" class="neon-btn" style="margin: 0;">Send</button>
+      </form>
+      <div id="onlineUsers" style="font-size: 10px; color: #444; margin-top: 6px;">⚫ Loading...</div>
     </div>
   </section>
 
-  <!-- SECRET CODES -->
-  <section class="window panel-section" data-panel="secrets" id="secretCodesWindow" style="max-width: 420px; margin: 16px auto 24px; width: 100%;">
-    <div class="window__bar"><span>🔐 secret codes</span></div>
-    <div style="padding: 12px; background: #e0e0e0;">
-      <form id="secretCodeForm" style="display: flex; gap: 6px; align-items: center;">
-        <input type="text" id="secretCodeInput" placeholder="enter code..." autocomplete="off" spellcheck="false"
-          style="flex-grow: 1; padding: 10px; border: 2px solid; border-color: #808080 #fff #fff #808080; font-family: Tahoma, sans-serif; font-size: 16px; background: #fff;">
-        <button type="submit" class="neon-btn" style="margin: 0; padding: 10px 14px; font-size: 13px;">OK</button>
+  <section class="window chat-box panel-section is-active home-full" data-panel="bugs" id="panel-bugs" style="margin-top: 12px; border: 2px solid #800000;">
+    <div class="window__bar" style="background: linear-gradient(90deg, #800000, #b30000);"><span>🐞 Bug Reports / Fix Requests</span></div>
+    <div style="padding: 8px; height: 200px; overflow-y: auto; background: #fff; border-bottom: 2px solid #808080;" id="bugMessages">
+      <div style="color: #888; font-size: 11px; text-align: center;">Connecting...</div>
+    </div>
+    <div style="padding: 8px; background: #e0e0e0;">
+      <form id="bugForm" style="display: flex; gap: 4px;">
+        <input type="text" id="bugInput" placeholder="Describe the bug..." style="flex-grow: 1; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080;" maxlength="200" autocomplete="off">
+        <button type="submit" class="neon-btn" style="margin: 0; background: #ffcccc; border-color: #fff #808080 #808080 #fff; color: #800000; font-weight: bold;">Send</button>
       </form>
-      <div id="secretCodeStatus" style="margin-top: 8px; font-size: 13px; color: #666; font-family: Tahoma, sans-serif; min-height: 16px;"></div>
+    </div>
+  </section>
+
+  <section class="window panel-section is-active home-full" data-panel="users" id="panel-users" style="margin-top: 12px;">
+    <div class="window__bar"><span>👥 Registered Users</span></div>
+    <div style="padding: 8px 8px 0 8px;">
+      <input type="text" id="userSearchInput" placeholder="Search by name..." style="width: 100%; padding: 4px; border: 2px solid; border-color: #808080 #fff #fff #808080; font-size: 12px; box-sizing: border-box;" autocomplete="off">
+    </div>
+    <div id="usersList" style="padding: 8px; max-height: 300px; overflow-y: auto; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 8px;">
+      <div style="text-align: center; color: #888;">Loading users...</div>
     </div>
   </section>
 </main>
+
+<section class="window panel-section is-active home-full-out" data-panel="rules" id="panel-rules" style="max-width: 1000px; margin: 12px auto;">
+  <div class="window__bar"><span>📜 4OOM FORUM RULES</span></div>
+  <div style="padding: 16px; font-family: 'Times New Roman', serif; font-size: 14px; line-height: 1.6; background: #fff; border: 2px solid; border-color: #808080 #fff #fff #808080; margin: 12px;">
+    <p style="margin-bottom: 12px;"><b>1. Respect and Freedom:</b> Be human. No insults, bullying, threats, or hate speech. Freedom of speech doesn't mean freedom from consequences. Argue with arguments, not with people.</p>
+    <p style="margin-bottom: 12px;"><b>2. Content:</b> No illegal content (NSFL, weapons, etc.). If you post NSFW (18+), mark it in the title. No spam, ads, or massive piracy.</p>
+    <p style="margin-bottom: 12px;"><b>3. Tech & Security:</b> Don't break the forum (no hacking, DDoS, exploits). Don't upload files larger than 5 MB to the database. One person - one account.</p>
+    <p style="margin-bottom: 12px;"><b>4. Moderation:</b> Admins (Creator, Mod, Editor) can delete posts and issue bans. Don't argue with moderation in threads - write to a mod in chat. Don't impersonate admins.</p>
+    <p style="margin-bottom: 12px;"><b>5. Chat:</b> The chat is a smoking room. Flood with images/music is ok, but respect applies. No spam to inflate the "online" count.</p>
+    <p style="margin-bottom: 12px; color: #800000;"><b>⚠️ Sanctions:</b> 1st - warning. 2nd - 24h ban. 3rd - 7d ban. Severe violations (NSFL, hacking, harassment) - permanent ban.</p>
+    <div style="margin-top: 20px; padding-top: 12px; border-top: 1px dashed #ccc; text-align: center; color: #800000; font-weight: bold; font-size: 15px;">
+      <p>The main rule: Don't be an asshole. This forum exists for the pleasure and nostalgia of the old internet. If you want to contribute - share music, images, create threads. If you want to start a fight - go to Twitter.</p>
+      <p style="margin-top: 8px; color: #000080;">Have a pleasant stay!</p>
+    </div>
+  </div>
+</section>
+
+<section class="window panel-section is-active home-full-out" data-panel="secrets" id="secretCodesWindow" style="max-width: 320px; margin: 16px auto 24px; width: 100%;">
+  <div class="window__bar"><span>🔐 secret codes</span></div>
+  <div style="padding: 10px; background: #e0e0e0;">
+    <form id="secretCodeForm" style="display: flex; gap: 4px; align-items: center;">
+      <input type="text" id="secretCodeInput" placeholder="enter code..." autocomplete="off" spellcheck="false"
+        style="flex-grow: 1; padding: 4px 6px; border: 2px solid; border-color: #808080 #fff #fff #808080; font-family: Tahoma, sans-serif; font-size: 12px; background: #fff;">
+      <button type="submit" class="neon-btn" style="margin: 0; padding: 4px 10px; font-size: 11px;">OK</button>
+    </form>
+    <div id="secretCodeStatus" style="margin-top: 6px; font-size: 11px; color: #666; font-family: Tahoma, sans-serif; min-height: 14px;"></div>
+  </div>
+</section>
   
 <footer class="footer"><p>4OOM © 2024</p></footer>
 

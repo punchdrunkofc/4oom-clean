@@ -571,54 +571,53 @@ input, textarea, select, button {
 }
 .side-nav-link { box-sizing: border-box; }
 
-/* Mobile: one panel at a time. Desktop: classic multi-window layout. */
-.layout--mobile-stack {
-  display: block;
+
+/* ===== Home layout: PC classic, mobile panels ===== */
+.home-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 12px;
   max-width: 1000px;
   margin: 0 auto;
+  align-items: start;
 }
 
-.panel-section { display: none; }
-.panel-section.is-active { display: block; }
+/* threads left, profile right — same as original .layout */
+.home-layout > [data-panel="threads"] {
+  grid-column: 1;
+  grid-row: 1;
+}
+.home-layout > [data-panel="profile"] {
+  grid-column: 2;
+  grid-row: 1;
+}
+/* lobby, bugs, users stretch full width under the top row */
+.home-layout > .home-full {
+  grid-column: 1 / -1;
+}
 
-/* Desktop / tablet landscape: restore previous window arrangement */
-@media (min-width: 900px) {
-  .panel-section {
-    display: block !important; /* ignore mobile panel toggling */
-  }
-
-  .layout--mobile-stack {
-    display: grid;
-    grid-template-columns: 1fr 280px;
-    gap: 12px;
+/* Mobile: single column, one panel at a time */
+@media (max-width: 899px) {
+  .home-layout {
+    display: block;
     max-width: 1000px;
     margin: 0 auto;
-    align-items: start;
   }
-
-  /* Threads left, profile right (original home layout) */
-  .layout--mobile-stack > [data-panel="threads"] {
-    grid-column: 1;
-    grid-row: 1;
-    margin-top: 0 !important;
-  }
-  .layout--mobile-stack > [data-panel="profile"] {
-    grid-column: 2;
-    grid-row: 1;
-    margin-top: 0 !important;
-  }
-
-  /* Everything else full width under the top row */
-  .layout--mobile-stack > [data-panel="lobby"],
-  .layout--mobile-stack > [data-panel="bugs"],
-  .layout--mobile-stack > [data-panel="users"],
-  .layout--mobile-stack > [data-panel="rules"],
-  .layout--mobile-stack > [data-panel="secrets"] {
-    grid-column: 1 / -1;
-  }
+  .panel-section { display: none !important; }
+  .panel-section.is-active { display: block !important; }
+  .home-full-out.panel-section { display: none !important; }
+  .home-full-out.panel-section.is-active { display: block !important; max-width: 100% !important; }
+  .desktop-nav { display: none; }
 }
 
-/* Messenger mobile: list OR chat */
+/* Desktop: always show every panel */
+@media (min-width: 900px) {
+  .panel-section { display: block !important; }
+  .home-full-out.panel-section { display: block !important; }
+}
+
+/* Messenger mobile:
+ list OR chat */
 .msgr-shell {
   display: flex;
   flex-grow: 1;
